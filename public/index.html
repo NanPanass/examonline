@@ -1,0 +1,296 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ExamHub – ระบบสอบออนไลน์</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@400;500;600;700&family=Noto+Serif+Thai:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#EEEBE1;--card:#F8F6EE;--ink:#2E3344;--mut:#767B93;--pri:#3C5A96;--pri2:#2A4478;--soft:#E8EAF1;--line:#DDD5BE;--ok:#3E8161;--okb:#DFEFE6;--bad:#AD5252;--badb:#F4E1DF;--warn:#A67C28;--gold:#93753C;--goldb:#F0E7CE;--onpri:#FBF8EE;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#161C30;--card:#1D2540;--ink:#E3DFCB;--mut:#9CA3BC;--pri:#8298CE;--pri2:#9FB0DE;--soft:#242D52;--line:#303C68;--ok:#68C093;--okb:#1E3A32;--bad:#DD8888;--badb:#3E2830;--warn:#DDAE57;--gold:#C9AD70;--goldb:#2C281F;--onpri:#0E1428}}
+:root[data-theme="dark"]{--bg:#161C30;--card:#1D2540;--ink:#E3DFCB;--mut:#9CA3BC;--pri:#8298CE;--pri2:#9FB0DE;--soft:#242D52;--line:#303C68;--ok:#68C093;--okb:#1E3A32;--bad:#DD8888;--badb:#3E2830;--warn:#DDAE57;--gold:#C9AD70;--goldb:#2C281F;--onpri:#0E1428}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.65 'Noto Sans Thai',system-ui,-apple-system,'Segoe UI',sans-serif}
+main{max-width:1080px;margin:0 auto;padding:24px 20px 70px}
+h1,h2,h3{line-height:1.35;margin:.2em 0 .4em;font-family:'Noto Serif Thai',Georgia,serif;font-weight:600}
+.mut{color:var(--mut)}.sm{font-size:.86rem}
+header{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);border-bottom:1px solid var(--line)}
+.hd{max-width:1080px;margin:auto;padding:10px 20px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:9px;font-weight:700;font-size:1.15rem;color:var(--pri);cursor:pointer;font-family:'Noto Serif Thai',Georgia,serif}
+.brand i{width:32px;height:32px;border-radius:9px;background:linear-gradient(135deg,var(--pri),var(--pri2));color:var(--onpri);display:grid;place-items:center;font-style:normal;border:1px solid var(--gold);font-family:Georgia,serif}
+.brand.big{justify-content:center;font-size:1.4rem;margin-bottom:10px}
+nav{display:flex;gap:4px;flex:1;flex-wrap:wrap}
+.nv{border:0;background:none;color:var(--mut);font:inherit;padding:7px 14px;border-radius:10px;cursor:pointer}
+.nv.on{background:var(--soft);color:var(--pri);font-weight:600;box-shadow:inset 0 -2px 0 var(--gold)}
+.usr{display:flex;align-items:center;gap:8px}
+.av{width:30px;height:30px;border-radius:50%;background:var(--pri);color:var(--onpri);display:grid;place-items:center;font-weight:600}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:20px;box-shadow:0 1px 2px rgba(30,42,74,.05)}
+.btn{font:inherit;border:1px solid var(--line);background:var(--card);color:var(--ink);padding:9px 18px;border-radius:11px;cursor:pointer;font-weight:500}
+.btn.pri{background:var(--pri);color:var(--onpri);border-color:var(--pri);box-shadow:0 2px 8px rgba(35,60,120,.25)}
+.btn.pri:hover{background:var(--pri2)}
+.btn.ghost{background:none}.btn.sm{padding:5px 12px;font-size:.85rem}
+.btn.del{color:var(--bad)}
+.btn.live{background:var(--gold);color:var(--onpri);border-color:var(--gold)}
+.btn:disabled{opacity:.45;cursor:default}
+.chips{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0 20px}
+.chip{border:1px solid var(--line);background:var(--card);color:var(--ink);font:inherit;padding:6px 16px;border-radius:99px;cursor:pointer}
+.chip.on{background:var(--pri);color:var(--onpri);border-color:var(--pri)}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:16px}
+.set{display:flex;flex-direction:column;gap:6px}.set .setbtns{margin-top:auto;display:flex;gap:8px;flex-wrap:wrap}
+.tag{align-self:flex-start;background:var(--goldb);color:var(--gold);font-size:.78rem;font-weight:600;padding:2px 10px;border-radius:99px}
+.meta{font-size:.88rem;color:var(--mut);margin:6px 0 10px}
+.inp,select,textarea{width:100%;font:inherit;color:var(--ink);background:var(--card);border:1.5px solid var(--line);border-radius:11px;padding:10px 13px;margin:4px 0 12px}
+.inp:focus,select:focus,textarea:focus{outline:none;border-color:var(--pri);box-shadow:0 0 0 3px var(--soft)}
+label.f{font-size:.85rem;font-weight:600;color:var(--mut)}
+.xbar{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:18px}
+.xbar h3{margin:0;flex:1;min-width:160px;font-family:'Noto Serif Thai',Georgia,serif}
+.pill{background:var(--soft);color:var(--pri);padding:6px 14px;border-radius:99px;font-weight:600;font-variant-numeric:tabular-nums}
+.pill.warn{background:var(--badb);color:var(--bad)}
+.prog{height:6px;background:var(--soft);border-radius:9px;overflow:hidden;margin-bottom:20px}
+.prog div{height:100%;background:var(--pri);transition:width .3s}
+.exl{display:grid;grid-template-columns:1fr 270px;gap:20px;align-items:start}
+@media(max-width:800px){.exl{grid-template-columns:1fr}}
+.qn{color:var(--pri);font-weight:600;font-size:.9rem}
+.qt{font-size:1.2rem;font-weight:500;margin:6px 0 14px;font-family:'Noto Serif Thai',Georgia,serif}
+.qimg{max-width:100%;max-height:320px;border-radius:12px;margin-bottom:14px;border:1px solid var(--line);display:block}
+.opt{display:flex;align-items:center;gap:12px;padding:12px 14px;border:1.5px solid var(--line);border-radius:12px;margin-bottom:10px;cursor:pointer;background:var(--card)}
+.opt:hover{border-color:var(--pri)}
+.opt:has(input:checked){border-color:var(--pri);background:var(--soft)}
+.opt b{width:28px;height:28px;border-radius:8px;background:var(--soft);color:var(--pri);display:grid;place-items:center;flex:none}
+.opt img.thumb{width:64px;height:64px;object-fit:cover;border-radius:8px;flex:none}
+.opt.ok{border-color:var(--ok)!important;background:var(--okb)!important}
+.opt.bad{border-color:var(--bad)!important;background:var(--badb)!important}
+.opt input{accent-color:var(--pri)}
+.fb{padding:12px 14px;border-radius:12px;margin-top:12px;font-size:.95rem}
+.fb.ok{background:var(--okb);color:var(--ok)}.fb.bad{background:var(--badb);color:var(--bad)}
+.fb small{display:block;color:var(--ink);margin-top:4px}
+.foot{display:flex;gap:10px;margin-top:18px;flex-wrap:wrap}.foot .sp{flex:1}
+.pal{display:flex;gap:9px;margin:14px 0;overflow-x:auto;padding-bottom:8px;scrollbar-width:thin}
+.pb{flex:none;width:36px;height:36px;border-radius:50%;border:1.3px solid var(--line);background:var(--card);color:var(--mut);font:600 .82rem 'Noto Serif Thai',Georgia,serif;cursor:pointer;position:relative}
+.pb.ans{background:var(--soft);border-color:var(--pri);color:var(--pri)}
+.pb.cur{background:var(--pri);color:var(--onpri);border-color:var(--pri);box-shadow:0 0 0 3px var(--goldb)}
+.pb.fl{border-color:var(--gold)}
+.pstat{text-align:center;flex:1}
+.pstat b{display:block;font:600 1.35rem 'Noto Serif Thai',Georgia,serif}
+.pstat span{color:var(--mut);font-size:.78rem}
+.lgd{font-size:.8rem;color:var(--mut)}
+.sc{display:flex;gap:26px;align-items:center;flex-wrap:wrap}
+.ring{width:130px;height:130px;border-radius:50%;background:conic-gradient(var(--pri) calc(var(--p)*1%),var(--soft) 0);display:grid;place-items:center}
+.ring div{width:100px;height:100px;border-radius:50%;background:var(--card);display:grid;place-items:center;font-size:1.6rem;font-weight:700;color:var(--pri)}
+.rv{margin-top:14px;border-left:4px solid var(--line)}
+.rv.ok{border-left-color:var(--ok)}.rv.bad{border-left-color:var(--bad)}
+table{width:100%;border-collapse:collapse}
+td,th{text-align:left;padding:10px 8px;border-bottom:1px solid var(--line);font-size:.92rem;vertical-align:top}
+th{color:var(--mut);font-weight:600}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:space-between;margin-bottom:14px}
+.two{display:grid;grid-template-columns:1fr 1fr 110px;gap:12px}
+@media(max-width:600px){.two{grid-template-columns:1fr}}
+.ov{position:fixed;inset:0;background:rgba(20,26,48,.5);display:grid;place-items:center;padding:16px;z-index:20}
+.md{background:var(--card);border-radius:18px;padding:24px;width:100%;max-width:560px;max-height:90vh;overflow:auto}
+.toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 20px;border-radius:99px;z-index:30}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;margin:16px 0}
+.stat{text-align:center;border-top:2px solid var(--gold)}.stat b{display:block;font:600 1.9rem 'Noto Serif Thai',Georgia,serif;color:var(--pri)}.stat span{color:var(--mut);font-size:.85rem}
+.sec{font-size:.78rem;font-weight:600;color:var(--gold);letter-spacing:.06em;margin:14px 0 8px}
+.lg{min-height:70vh;display:grid;place-items:center;padding:20px}
+.lgc{max-width:440px;text-align:center;padding:36px 28px;border-top:3px solid var(--gold)}
+.crow{display:flex;gap:8px;align-items:flex-start;border:1px solid var(--line);border-radius:12px;padding:10px;margin-bottom:8px;background:var(--soft)}
+.crow .inp{margin:0 0 6px}
+.thumb-sm{width:56px;height:56px;object-fit:cover;border-radius:8px;border:1px solid var(--line)}
+.pin{font:700 3rem/1 'Noto Serif Thai',Georgia,serif;letter-spacing:.08em;color:var(--pri);text-align:center;margin:10px 0}
+.plist{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0}
+.ptag{background:var(--soft);color:var(--pri);padding:6px 14px;border-radius:99px;font-weight:600;font-size:.9rem}
+.lbrow{display:flex;justify-content:space-between;padding:9px 14px;border-bottom:1px solid var(--line)}
+.lbrow:first-child{font-weight:700;color:var(--gold)}
+.livebtns{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:16px}
+@media(max-width:560px){.livebtns{grid-template-columns:1fr}}
+.lbtn{border:none;border-radius:14px;padding:22px 16px;color:#fff;font:600 1.05rem/1.4 inherit;cursor:pointer;text-align:left;display:flex;align-items:center;gap:12px}
+.lbtn img{width:52px;height:52px;object-fit:cover;border-radius:8px;flex:none}
+.lbtn:disabled{opacity:.55;cursor:default}
+.lbtn.c0{background:#C0392B}.lbtn.c1{background:#2471A3}.lbtn.c2{background:#B7950B}.lbtn.c3{background:#229954}
+.timerbar{height:8px;background:var(--soft);border-radius:9px;overflow:hidden;margin:12px 0}
+.timerbar div{height:100%;background:var(--gold);transition:width .25s linear}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.min.js"></script>
+<script>
+const $=s=>document.querySelector(s),esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])),L='ABCDEFGH';
+const CATS=['ทั่วไป','ภาษาไทย','ภาษาอังกฤษ','คณิตศาสตร์','วิทยาศาสตร์','สังคมศึกษา','คอมพิวเตอร์/เทคโนโลยี','สุขศึกษาและพลศึกษา','ศิลปะ','ภาษาต่างประเทศอื่นๆ'];
+
+// ---------- API client ----------
+let token=localStorage.getItem('examhub.token')||null;
+async function api(p,opt={}){
+  const h={};let body=opt.body;
+  if(body&&!(body instanceof FormData)){h['Content-Type']='application/json';body=JSON.stringify(body)}
+  if(token)h['Authorization']='Bearer '+token;
+  const r=await fetch(p,{method:opt.method||(body?'POST':'GET'),headers:h,body});
+  let j=null;try{j=await r.json()}catch(e){}
+  if(!r.ok)throw new Error((j&&j.error)||'เกิดข้อผิดพลาด ('+r.status+')');
+  return j;
+}
+async function uploadImg(file){
+  const fd=new FormData();fd.append('image',file);
+  return (await api('/api/upload',{body:fd})).url;
+}
+
+// ---------- App state ----------
+let me=null,sets=[],view='home',cat='ทั้งหมด',X=null,R=null,tm=null;
+let resultsList=[],adminUsers=[],edSet=null,EID=null,QID=null,edQ=null,CB=null;
+let socket=null,LIVE=null,liveTick=null;
+
+function modal(h){closeM();const d=document.createElement('div');d.className='ov';d.id='ov';d.innerHTML='<div class="md">'+h+'</div>';document.body.appendChild(d)}
+const closeM=()=>{const o=$('#ov');o&&o.remove()};
+function toast(m){const t=document.createElement('div');t.className='toast';t.textContent=m;document.body.appendChild(t);setTimeout(()=>t.remove(),2400)}
+function ask(msg,fn,label='ยืนยัน'){CB=fn;modal(`<h3>${msg}</h3><div class="foot"><span class="sp"></span><button class="btn" data-a="cm">ยกเลิก</button><button class="btn pri" data-a="cb">${label}</button></div>`)}
+const adm=()=>me&&me.role==='admin';
+const fmt=s=>String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0');
+const myA=x=>x.type==='mc'?(x.given==null?'—':(x.choices[x.given]?(L[x.given]+'. '+x.choices[x.given].text):'—')):((x.given&&String(x.given).trim())?x.given:'—');
+
+// ---------- Boot ----------
+async function boot(){
+  if(token){try{const r=await api('/api/auth/me');me=r.user}catch(e){token=null;localStorage.removeItem('examhub.token')}}
+  await loadSets();render();
+}
+async function loadSets(){try{sets=await api('/api/sets')}catch(e){sets=[]}}
+
+// ---------- Views ----------
+const head=()=>`<header><div class="hd"><div class="brand" data-a="go" data-v="home"><i>E</i>ExamHub</div><nav>${[['home','ข้อสอบ'],['live','ห้องสอบสด'],['hist','ผลสอบ'],...(adm()?[['admin','⚙ ระบบหลังบ้าน']]:[])].map(([k,l])=>`<button class="nv ${view===k||(k==='admin'&&view==='edit')?'on':''}" data-a="go" data-v="${k}">${l}</button>`).join('')}</nav><div class="usr">${me?`<span class="av">${esc(me.name[0])}</span><span class="sm mut">${esc(me.name)}</span><button class="btn sm ghost" data-a="out">ออกจากระบบ</button>`:`<button class="btn sm pri" data-a="authm">เข้าสู่ระบบ</button>`}</div></div></header>`;
+
+const V={};
+V.home=()=>{const cats=['ทั้งหมด',...new Set(sets.map(s=>s.cat))],l=sets.filter(s=>cat==='ทั้งหมด'||s.cat===cat);
+return `<h2>${me?'สวัสดี '+esc(me.name)+' 👋':'สวัสดี 👋'}</h2><p class="mut">เลือกชุดข้อสอบที่ต้องการทำ — ทำได้เลยแม้ไม่ได้เข้าสู่ระบบ</p><div class="chips">${cats.map(c=>`<button class="chip ${c===cat?'on':''}" data-a="cat" data-v="${esc(c)}">${esc(c)}</button>`).join('')}</div><div class="grid">${l.map(s=>`<div class="card set"><span class="tag">${esc(s.cat)}</span><h3>${esc(s.title)}</h3><p class="mut sm">${esc(s.desc||'')}</p><div class="meta">📄 ${s.qCount} ข้อ (ปรนัย ${s.mcCount} · อัตนัย ${s.saCount}) · ⏱ ${s.time?s.time+' นาที':'ไม่จำกัดเวลา'}</div><div class="setbtns"><button class="btn pri" data-a="setup" data-v="${s.id}" ${s.qCount?'':'disabled'}>เริ่มทำข้อสอบ</button>${me&&s.mcCount?`<button class="btn live" data-a="hostRoom" data-v="${s.id}">🔴 ชวนเพื่อนเล่นสด</button>`:''}</div></div>`).join('')||'<p class="mut">ยังไม่มีข้อสอบ</p>'}</div>`};
+
+V.setup=null; // handled via modal, see A.setup
+
+V.exam=()=>{const q=X.qs[X.i],n=X.qs.length,fbk=X.fb[q.id],a=X.ans[q.id],pr=X.mode==='p';let b;
+if(q.type==='mc')b=q.choices.map((c,k)=>`<label class="opt ${pr&&fbk?(k===fbk.rightIdx?'ok':(a===k?'bad':'')):''}"><input type="radio" name="o" ${a===k?'checked':''} ${fbk?'disabled':''} data-a="pick" data-v="${k}">${c.image?`<img class="thumb" src="${esc(c.image)}">`:''}<b>${L[k]}</b><span>${esc(c.text||'')}</span></label>`).join('');
+else b=`<input class="inp" id="sa" placeholder="พิมพ์คำตอบของคุณ" autocomplete="off" value="${esc(a||'')}" ${fbk?'disabled':''} oninput="X.ans['${q.id}']=this.value" onkeydown="if(event.key==='Enter')A.chk()">`;
+const fb=fbk?`<div class="fb ${fbk.ok?'ok':'bad'}">${fbk.ok?'✓ ถูกต้อง':'✗ ยังไม่ถูก · เฉลย: '+esc(fbk.rightAnswer)}${fbk.explanation?`<small>${esc(fbk.explanation)}</small>`:''}</div>`:'';
+const last=X.i===n-1;
+return `<div class="xbar"><h3>${esc(X.title)}</h3><span class="pill" id="tm">--:--</span><button class="btn pri" data-a="sub">ส่งข้อสอบ</button></div><div class="prog"><div style="width:${(X.i+1)/n*100}%"></div></div>
+<div class="exl"><div class="card"><div class="qn">ข้อที่ ${X.i+1} / ${n} · ${q.type==='mc'?'ปรนัย':'อัตนัย (คำตอบตายตัว)'}</div>${q.q_image?`<img class="qimg" src="${esc(q.q_image)}">`:''}<div class="qt">${esc(q.q)}</div>${b}${fb}
+<div class="foot"><button class="btn" data-a="pv" ${X.i?'':'disabled'}>← ก่อนหน้า</button>${pr&&q.type==='sa'&&!fbk?'<button class="btn pri" data-a="chk">ตรวจคำตอบ</button>':''}<button class="btn ghost" data-a="fl">${X.flag[q.id]?'🚩 ยกเลิกปักธง':'🏳 ปักธงทบทวน'}</button><span class="sp"></span><button class="btn pri" data-a="${last?'sub':'nx'}">${last?'ส่งข้อสอบ':'ถัดไป →'}</button></div></div>
+<aside class="card"><div class="sec">แผนผังข้อสอบ</div><div class="pal">${X.qs.map((x,i)=>`<button class="pb ${i===X.i?'cur':X.ans[x.id]!=null&&X.ans[x.id]!==''?'ans':''} ${X.flag[x.id]?'fl':''}" data-a="jp" data-v="${i}">${i+1}</button>`).join('')}</div><div style="display:flex;margin-top:14px;padding-top:14px;border-top:1px solid var(--line)"><div class="pstat"><b style="color:var(--pri)">${Object.values(X.ans).filter(v=>v!==''&&v!=null).length}/${n}</b><span>ตอบแล้ว</span></div><div class="pstat" style="border-left:1px solid var(--line)"><b style="color:var(--gold)">${Object.values(X.flag).filter(Boolean).length}</b><span>ปักธง</span></div></div><div class="lgd" style="margin-top:12px;text-align:center">${pr?'โหมดฝึกฝน · เฉลยทันที':'โหมดสอบจริง · เฉลยหลังส่ง'}</div></aside></div>`};
+
+V.result=()=>{const p=Math.round(R.score/R.total*100);
+return `<div class="card sc"><div class="ring" style="--p:${p}"><div>${p}%</div></div><div><h2>${p>=60?'ผ่านเกณฑ์ 🎉':'ยังไม่ผ่านเกณฑ์'}</h2><div>${esc(R.title)}</div><div class="mut">ได้ ${R.score} / ${R.total} คะแนน · ใช้เวลา ${fmt(R.sec)} · ${R.mode==='m'?'โหมดสอบจริง':'โหมดฝึกฝน'}${R.mode==='m'&&R.away?` · <span style="color:var(--warn)">⚠ ออกจากหน้าจอ ${R.away} ครั้งระหว่างสอบ</span>`:''}</div><div class="foot"><button class="btn pri" data-a="go" data-v="home">ทำชุดอื่น</button></div></div></div>
+${R.detail.map((x,i)=>`<div class="card rv ${x.correct?'ok':'bad'}"><div class="qn">ข้อ ${i+1} · ${x.correct?'ถูก':'ผิด'}</div><div class="qt">${esc(x.q)}</div><div>คำตอบของคุณ: <b>${esc(myA(x))}</b></div>${x.correct?'':`<div>เฉลย: <b style="color:var(--ok)">${esc(x.rightAnswer)}</b></div>`}${x.explanation?`<div class="mut sm" style="margin-top:6px">💡 ${esc(x.explanation)}</div>`:''}</div>`).join('')}`};
+
+V.hist=()=>{if(!me)return `<h2>ประวัติผลสอบ</h2><p class="mut">เข้าสู่ระบบเพื่อบันทึกและดูประวัติผลสอบของคุณ (การทำข้อสอบแบบผู้เยี่ยมชมจะไม่ถูกผูกกับบัญชี)</p><button class="btn pri" data-a="authm">เข้าสู่ระบบ</button>`;
+return `<div class="row"><h2>ประวัติผลสอบ</h2>${adm()?`<label class="sm mut"><input type="checkbox" id="hall" onchange="A.histAll(this.checked)"> แสดงของทุกคน</label>`:''}</div>${resultsList.length?`<div class="card"><table><tr><th>ชุดข้อสอบ</th>${adm()?'<th>ผู้สอบ</th>':''}<th>คะแนน</th><th>วันที่</th><th></th></tr>${resultsList.map(r=>`<tr><td>${esc(r.title)}</td>${adm()?`<td>${esc(r.email||'-')}</td>`:''}<td>${r.score}/${r.total} (${Math.round(r.score/r.total*100)}%)</td><td>${new Date(r.date).toLocaleString('th-TH')}</td><td><button class="btn sm" data-a="open" data-v="${r.id}">ดูเฉลย</button></td></tr>`).join('')}</table></div>`:'<p class="mut">ยังไม่มีประวัติการสอบ</p>'}`};
+
+V.admin=()=>{const nq=sets.reduce((n,s)=>n+s.qCount,0);
+return `<div class="row"><div><h2>ระบบหลังบ้าน</h2><div class="mut sm">จัดการชุดข้อสอบ ข้อสอบ และผู้ใช้งาน</div></div><button class="btn pri" data-a="sadd">+ เพิ่มชุดข้อสอบ</button></div><div class="stats"><div class="card stat"><b>${sets.length}</b><span>ชุดข้อสอบ</span></div><div class="card stat"><b>${nq}</b><span>ข้อสอบทั้งหมด</span></div><div class="card stat"><b>${adminUsers.length}</b><span>ผู้ใช้งาน</span></div></div>
+<h3 style="margin-top:24px">ชุดข้อสอบ</h3><div class="card"><table><tr><th>ชื่อชุด</th><th>ประเภท</th><th>ข้อ</th><th>สถานะ</th><th></th></tr>${sets.map(s=>`<tr><td>${esc(s.title)}</td><td>${esc(s.cat)}</td><td>${s.qCount}</td><td>${s.is_public?'สาธารณะ':'ซ่อน'}</td><td style="white-space:nowrap"><button class="btn sm" data-a="sed" data-v="${s.id}">จัดการข้อสอบ</button> <button class="btn sm del" data-a="sdel" data-v="${s.id}">ลบ</button></td></tr>`).join('')}</table></div>
+<h3 style="margin-top:24px">ผู้ใช้งาน</h3><div class="card"><table><tr><th>อีเมล</th><th>สิทธิ์</th><th></th></tr>${adminUsers.map(u=>`<tr><td>${esc(u.email)}</td><td>${u.role==='admin'?'ผู้ดูแล':'ผู้สอบ'}</td><td>${u.id===me.id?'':`<button class="btn sm" data-a="role" data-v="${u.id}|${u.role}">${u.role==='admin'?'ปรับเป็นผู้สอบ':'ตั้งเป็นผู้ดูแล'}</button>`}</td></tr>`).join('')}</table></div>`};
+
+V.edit=()=>{const s=edSet,catOpts=[...new Set([...CATS,s.cat])];
+return `<div class="row"><h2>แก้ไขชุดข้อสอบ</h2><button class="btn" data-a="go" data-v="admin">← กลับ</button></div><div class="card"><div class="two"><div><label class="f">ชื่อชุดข้อสอบ</label><input class="inp" value="${esc(s.title)}" onchange="A.setField('title',this.value)"></div><div><label class="f">ประเภท</label><select class="inp" onchange="A.setField('cat',this.value)">${catOpts.map(c=>`<option value="${esc(c)}" ${s.cat===c?'selected':''}>${esc(c)}</option>`).join('')}</select></div><div><label class="f">เวลา (นาที)</label><input class="inp" type="number" min="0" value="${s.time}" onchange="A.setField('time',+this.value||0)"></div></div><label class="f">คำอธิบายสั้น ๆ</label><input class="inp" value="${esc(s.desc||'')}" onchange="A.setField('desc',this.value)"><label class="f"><input type="checkbox" ${s.is_public?'checked':''} onchange="A.setField('is_public',this.checked)"> เผยแพร่แบบสาธารณะ (ทุกคนเห็นในหน้าแรก)</label></div>
+<div class="row" style="margin-top:20px"><h3>ข้อสอบ (${s.questions.length} ข้อ)</h3><button class="btn pri" data-a="qed" data-v="">+ เพิ่มข้อสอบ</button></div><div class="card"><table>${s.questions.map((q,i)=>`<tr><td>${i+1}</td><td>${q.q_image?'🖼 ':''}${esc(q.q)}<div class="mut sm">${q.type==='mc'?'ปรนัย':'อัตนัย'} · เฉลย: ${esc(q.type==='mc'?(q.choices[q.answer]?.text||''):q.answer.join(' / '))}</div></td><td style="white-space:nowrap"><button class="btn sm" data-a="qed" data-v="${q.id}">แก้ไข</button> <button class="btn sm del" data-a="qdel" data-v="${q.id}">ลบ</button></td></tr>`).join('')||'<tr><td class="mut">ยังไม่มีข้อสอบในชุดนี้</td></tr>'}</table></div>`};
+
+// ---------- Live room view ----------
+function timeLeftPct(){if(!LIVE||!LIVE.question)return 0;const el=Date.now()-LIVE.question.startedAt;return Math.max(0,100-el/(LIVE.question.seconds*1000)*100)}
+V.live=()=>{if(!LIVE)return `<h2>ห้องสอบสด</h2><p class="mut">เข้าร่วมห้องด้วย PIN จากเพื่อน หรือเปิดห้องใหม่จากชุดข้อสอบของคุณในหน้าแรก</p><div class="card" style="max-width:380px"><label class="f">PIN ห้อง (6 หลัก)</label><input class="inp" id="jpin" inputmode="numeric" maxlength="6" placeholder="123456"><label class="f">ชื่อเล่นของคุณ</label><input class="inp" id="jnick" placeholder="เช่น น้องเอ" maxlength="24"><button class="btn pri" data-a="joinRoom" style="width:100%">เข้าร่วมห้อง</button></div>`;
+const L2=LIVE;
+if(L2.role==='host'){
+ if(L2.status==='lobby')return `<div class="card lgc" style="max-width:520px;margin:auto"><h2>${esc(L2.title)}</h2><p class="mut">บอก PIN นี้ให้เพื่อนพิมพ์เพื่อเข้าร่วม</p><div class="pin">${L2.pin}</div><div class="plist">${(L2.players||[]).map(p=>`<span class="ptag">${esc(p.nickname)}</span>`).join('')||'<span class="mut sm">ยังไม่มีใครเข้าร่วม…</span>'}</div><button class="btn pri" style="width:100%" data-a="liveStart" ${(L2.players||[]).length?'':'disabled'}>เริ่มเล่น (${(L2.players||[]).length} คน)</button></div>`;
+ if(L2.status==='question'){const q=L2.question,answered=(L2.players||[]).length;return `<div class="card"><div class="row"><h3>ข้อ ${q.qIndex+1} / ${q.total}</h3><button class="btn" data-a="liveNext">เฉลยตอนนี้</button></div><div class="timerbar"><div style="width:${timeLeftPct()}%"></div></div>${q.q_image?`<img class="qimg" src="${esc(q.q_image)}">`:''}<div class="qt">${esc(q.q)}</div><p class="mut">ผู้เล่นกำลังตอบ… (โฮสต์ไม่เห็นคำตอบจนกว่าจะเฉลย)</p></div>`;}
+ if(L2.status==='reveal'){const rv=L2.lastReveal;return `<div class="card"><h3>เฉลย: ${esc(rv.rightAnswer)}</h3>${rv.explanation?`<p class="mut">${esc(rv.explanation)}</p>`:''}<div class="sec">กระดานคะแนน</div>${rv.leaderboard.map((p,i)=>`<div class="lbrow"><span>${i+1}. ${esc(p.nickname)}</span><b>${p.score}</b></div>`).join('')}<div class="foot"><span class="sp"></span><button class="btn pri" data-a="liveNext">ข้อถัดไป / ดูผลสรุป →</button></div></div>`;}
+ if(L2.status==='ended')return `<div class="card"><h2>🏁 จบเกม!</h2><div class="sec">อันดับสุดท้าย</div>${L2.leaderboard.map((p,i)=>`<div class="lbrow"><span>${i+1}. ${esc(p.nickname)}</span><b>${p.score}</b></div>`).join('')}<div class="foot"><button class="btn pri" data-a="go" data-v="home">กลับหน้าแรก</button></div></div>`;
+}else{
+ if(L2.status==='lobby')return `<div class="card lgc" style="max-width:420px;margin:auto"><h2>${esc(L2.title)}</h2><p class="mut">เข้าร่วมในชื่อ <b>${esc(L2.nickname)}</b> แล้ว — รอโฮสต์เริ่มเกม…</p></div>`;
+ if(L2.status==='question'){const q=L2.question;
+   if(L2.myAnswered)return `<div class="card lgc" style="max-width:420px;margin:auto"><h2>ส่งคำตอบแล้ว ✅</h2><p class="mut">รอผู้เล่นคนอื่น…</p></div>`;
+   const colors=['c0','c1','c2','c3'];
+   return `<div class="card"><div class="timerbar"><div style="width:${timeLeftPct()}%"></div></div>${q.q_image?`<img class="qimg" src="${esc(q.q_image)}">`:''}<div class="qt">${esc(q.q)}</div><div class="livebtns">${(q.choices||[]).map((c,i)=>`<button class="lbtn ${colors[i%4]}" data-a="liveAnswer" data-v="${i}">${c.image?`<img src="${esc(c.image)}">`:''}<span>${L[i]}. ${esc(c.text||'')}</span></button>`).join('')}</div></div>`;}
+ if(L2.status==='reveal'){const rv=L2.lastReveal;return `<div class="card lgc" style="max-width:420px;margin:auto"><h2>${L2.myLastCorrect?'ถูกต้อง! 🎉':'ยังไม่ถูก'}</h2>${L2.myLastCorrect?`<p>+${L2.myLastPoints} คะแนน</p>`:''}<p class="mut">เฉลย: ${esc(rv.rightAnswer)}</p><div class="sec">อันดับปัจจุบัน</div>${rv.leaderboard.slice(0,5).map((p,i)=>`<div class="lbrow"><span>${i+1}. ${esc(p.nickname)}</span><b>${p.score}</b></div>`).join('')}</div>`;}
+ if(L2.status==='ended')return `<div class="card"><h2>🏁 จบเกม!</h2><div class="sec">อันดับสุดท้าย</div>${L2.leaderboard.map((p,i)=>`<div class="lbrow ${p.nickname===L2.nickname?'':''}"><span>${i+1}. ${esc(p.nickname)}</span><b>${p.score}</b></div>`).join('')}<div class="foot"><button class="btn pri" data-a="go" data-v="home">กลับหน้าแรก</button></div></div>`;
+}};
+
+function render(){const a=$('#app');a.innerHTML=(view==='exam'||view==='live'&&LIVE&&LIVE.status==='question'?'':head())+`<main>${V[view]()}</main>`;if(view==='exam')tick();window.scrollTo(0,0)}
+function tick(){if(!X)return;const e=$('#tm');if(!e)return;if(X.end){const l=Math.max(0,Math.round((X.end-Date.now())/1e3));e.textContent=fmt(l);e.classList.toggle('warn',l<60);if(!l)A.sub(true)}else e.textContent=fmt(Math.round((Date.now()-X.t0)/1e3))}
+
+// ---------- Actions ----------
+const A={
+go(v){if(X&&view==='exam')return;view=v;render();if(v==='hist')A.histAll(false);if(v==='admin')A.loadAdmin()},
+cat(v){cat=v;render()},cm:closeM,cb(){closeM();CB&&CB()},
+authm(){modal(`<h3>เข้าสู่ระบบ / สมัครสมาชิก</h3><div class="two" style="grid-template-columns:1fr"><label class="f">อีเมล</label><input class="inp" id="aem" type="email"><label class="f">รหัสผ่าน</label><input class="inp" id="apw" type="password"><label class="f" id="anmL" style="display:none">ชื่อที่แสดง</label><input class="inp" id="anm" style="display:none" placeholder="ชื่อของคุณ"></div><div class="fb" id="aerr" style="display:none"></div><div class="foot"><span class="sp"></span><button class="btn" data-a="cm">ยกเลิก</button><button class="btn" data-a="authSubmit" data-v="register">สมัครสมาชิกใหม่</button><button class="btn pri" data-a="authSubmit" data-v="login">เข้าสู่ระบบ</button></div>`)},
+async authSubmit(mode){const email=$('#aem').value.trim(),pw=$('#apw').value,name=$('#anm').value.trim(),err=$('#aerr');
+ if(mode==='register'){$('#anmL').style.display='';$('#anm').style.display='';if(!name&&!$('#anm').dataset.asked){$('#anm').dataset.asked='1';return}}
+ try{const r=await api(mode==='register'?'/api/auth/register':'/api/auth/login',{body:mode==='register'?{email,password:pw,name}:{email,password:pw}});
+   token=r.token;localStorage.setItem('examhub.token',token);me=r.user;closeM();await loadSets();if(adm())await A.loadAdmin();view='home';render();toast('ยินดีต้อนรับ '+r.user.name)}
+ catch(e){err.style.display='';err.className='fb bad';err.textContent=e.message}},
+out(){token=null;me=null;localStorage.removeItem('examhub.token');if(socket){socket.disconnect();socket=null}LIVE=null;view='home';render()},
+histAll(all){api('/api/results'+(adm()&&all?'?all=1':'')).then(r=>{resultsList=r;render()}).catch(()=>{})},
+async loadAdmin(){if(!adm())return;try{adminUsers=await api('/api/admin/users')}catch(e){}render()},
+role(v){const [id,role]=v.split('|');api('/api/admin/users/'+id+'/role',{method:'PUT',body:{role:role==='admin'?'user':'admin'}}).then(()=>A.loadAdmin())},
+async open(id){R=await api('/api/results/'+id);view='result';render()},
+
+async sadd(){try{const s=await api('/api/admin/sets',{body:{title:'ชุดข้อสอบใหม่',cat:'ทั่วไป',time:10,desc:''}});await loadSets();edSet=await api('/api/admin/sets/'+s.id);EID=s.id;view='edit';render()}catch(e){toast(e.message)}},
+async sed(id){edSet=await api('/api/admin/sets/'+id);EID=id;view='edit';render()},
+sdel(id){ask('ลบชุดข้อสอบนี้?',async()=>{await api('/api/admin/sets/'+id,{method:'DELETE'});await loadSets();render()},'ลบ')},
+setField(k,v){edSet[k]=v;api('/api/admin/sets/'+EID,{method:'PUT',body:{[k]:v}}).then(loadSets)},
+qdel(id){ask('ลบข้อสอบข้อนี้?',async()=>{await api('/api/admin/questions/'+id,{method:'DELETE'});edSet=await api('/api/admin/sets/'+EID);await loadSets();render()},'ลบ')},
+
+qed(id){QID=id||null;const src=id?edSet.questions.find(x=>x.id===id):null;
+ edQ=src?JSON.parse(JSON.stringify(src)):{type:'mc',q:'',q_image:null,choices:[{text:'',image:null},{text:'',image:null}],answer:0,saAnswer:'',explanation:''};
+ if(edQ.type==='sa')edQ.saAnswer=(edQ.answer||[]).join('\n');
+ modal(qEditorHtml())},
+qEditorHtml(){const q=edQ;
+ const mcBlock=`<label class="f">ตัวเลือกคำตอบ (แต่ละข้อใส่ข้อความและ/หรือรูปภาพได้)</label>${q.choices.map((c,i)=>`<div class="crow"><b style="padding-top:8px">${L[i]}</b><div style="flex:1"><input class="inp" placeholder="ข้อความตัวเลือก (เว้นว่างได้ถ้าใช้รูป)" value="${esc(c.text||'')}" oninput="edQ.choices[${i}].text=this.value">${c.image?`<img class="thumb-sm" src="${esc(c.image)}"> <button class="btn sm del" type="button" onclick="edQ.choices[${i}].image=null;A.refreshQ()">ลบรูป</button>`:`<input type="file" accept="image/*" onchange="A.qImg(this.files[0],'c',${i})">`}</div><label style="display:flex;align-items:center;gap:4px;white-space:nowrap"><input type="radio" name="qans" ${q.answer===i?'checked':''} onchange="edQ.answer=${i}"> ถูกต้อง</label>${q.choices.length>2?`<button class="btn sm del" type="button" onclick="edQ.choices.splice(${i},1);if(edQ.answer>=edQ.choices.length)edQ.answer=0;A.refreshQ()">✕</button>`:''}</div>`).join('')}<button class="btn sm" type="button" onclick="edQ.choices.push({text:'',image:null});A.refreshQ()">+ เพิ่มตัวเลือก</button>`;
+ const saBlock=`<label class="f">คำตอบที่ยอมรับ (1 บรรทัดต่อ 1 คำตอบ ไม่สนตัวพิมพ์เล็ก/ใหญ่)</label><textarea class="inp" rows="3" oninput="edQ.saAnswer=this.value">${esc(q.saAnswer||'')}</textarea>`;
+ return `<h3>${QID?'แก้ไข':'เพิ่ม'}ข้อสอบ</h3><label class="f">รูปแบบคำตอบ</label><select class="inp" onchange="edQ.type=this.value;A.refreshQ()"><option value="mc" ${q.type==='mc'?'selected':''}>ปรนัย (เลือกตัวเลือก) — รองรับห้องสอบสด</option><option value="sa" ${q.type==='sa'?'selected':''}>อัตนัย (พิมพ์ตอบ คำตอบตายตัว)</option></select>
+ <label class="f">โจทย์</label><textarea class="inp" rows="2" oninput="edQ.q=this.value">${esc(q.q)}</textarea>
+ <label class="f">รูปประกอบโจทย์ (ไม่บังคับ)</label>${q.q_image?`<div><img class="thumb-sm" style="width:110px;height:110px" src="${esc(q.q_image)}"> <button class="btn sm del" type="button" onclick="edQ.q_image=null;A.refreshQ()">ลบรูป</button></div>`:`<input type="file" accept="image/*" onchange="A.qImg(this.files[0],'q')">`}
+ ${q.type==='mc'?mcBlock:saBlock}
+ <label class="f">คำอธิบายเฉลย</label><textarea class="inp" rows="2" oninput="edQ.explanation=this.value">${esc(q.explanation||'')}</textarea>
+ <div class="foot"><span class="sp"></span><button class="btn" data-a="cm">ยกเลิก</button><button class="btn pri" data-a="qsave">บันทึก</button></div>`},
+refreshQ(){modal(A.qEditorHtml())},
+async qImg(file,kind,idx){if(!file)return;try{const url=await uploadImg(file);if(kind==='q')edQ.q_image=url;else edQ.choices[idx].image=url;A.refreshQ()}catch(e){toast(e.message)}},
+async qsave(){const q=edQ,body={type:q.type,q:(q.q||'').trim(),q_image:q.q_image||null,explanation:(q.explanation||'').trim()};
+ if(!body.q)return toast('กรุณากรอกโจทย์');
+ if(q.type==='mc'){body.choices=q.choices.map(c=>({text:(c.text||'').trim(),image:c.image||null}));if(body.choices.some(c=>!c.text&&!c.image))return toast('ทุกตัวเลือกต้องมีข้อความหรือรูปภาพ');body.answer=q.answer}
+ else{const a=(q.saAnswer||'').split('\n').map(x=>x.trim()).filter(Boolean);if(!a.length)return toast('ใส่คำตอบที่ถูกอย่างน้อย 1 คำตอบ');body.answer=a}
+ try{if(QID)await api('/api/admin/questions/'+QID,{method:'PUT',body});else await api('/api/admin/sets/'+EID+'/questions',{body});
+   edSet=await api('/api/admin/sets/'+EID);await loadSets();closeM();render()}catch(e){toast(e.message)}},
+
+setup(id){const s=sets.find(x=>x.id===id),nm=s.mcCount,ns=s.saCount;
+ modal(`<h3>${esc(s.title)}</h3><p class="mut sm">${s.qCount} ข้อ · ${s.time?s.time+' นาที':'ไม่จำกัดเวลา'}</p>${!me?`<label class="f">ชื่อที่ใช้แสดงผล (ทำในฐานะผู้เยี่ยมชม)</label><input class="inp" id="gname" placeholder="ชื่อของคุณ">`:''}<div class="sec">โหมดการสอบ</div><label class="opt"><input type="radio" name="md" value="m" checked><span><b style="display:inline">โหมดสอบจริง</b><br><small class="mut">จับเวลา · ดูเฉลยหลังส่งข้อสอบ</small></span></label><label class="opt"><input type="radio" name="md" value="p"><span><b style="display:inline">โหมดฝึกฝน</b><br><small class="mut">ไม่จับเวลา · ตรวจและดูเฉลยทีละข้อ</small></span></label><div class="sec">รูปแบบข้อสอบ</div><label class="opt"><input type="radio" name="fm" value="all" checked><span><b style="display:inline">แบบผสม</b> ปรนัย + อัตนัย<br><small class="mut">${s.qCount} ข้อ</small></span></label><label class="opt" ${nm?'':'style="opacity:.45"'}><input type="radio" name="fm" value="mc" ${nm?'':'disabled'}><span><b style="display:inline">ปรนัยล้วน</b><br><small class="mut">${nm} ข้อ</small></span></label><label class="opt" ${ns?'':'style="opacity:.45"'}><input type="radio" name="fm" value="sa" ${ns?'':'disabled'}><span><b style="display:inline">อัตนัยล้วน</b><br><small class="mut">${ns} ข้อ</small></span></label><div class="sec">ตัวเลือกเพิ่มเติม</div><label class="opt"><input type="checkbox" id="shf"><span>สลับลำดับข้อสอบ</span></label><div class="foot"><span class="sp"></span><button class="btn" data-a="cm">ยกเลิก</button><button class="btn pri" data-a="start" data-v="${id}">เริ่มสอบ</button></div>`)},
+async start(id){const md=$('input[name=md]:checked').value,fm=$('input[name=fm]:checked').value,shuffle=$('#shf').checked,gname=$('#gname');
+ if(gname&&!gname.value.trim())return toast('กรุณากรอกชื่อที่ใช้แสดงผล');
+ try{const r=await api('/api/exam/start',{body:{setId:id,mode:md,format:fm,shuffle}});
+   X={sid:r.sessionId,title:r.set.title,qs:r.questions,ans:{},flag:{},fb:{},i:0,mode:md,t0:Date.now(),end:md==='m'&&r.set.time?Date.now()+r.set.time*6e4:0,away:0,guestName:gname?gname.value.trim():null};
+   closeM();view='exam';render();clearInterval(tm);tm=setInterval(tick,1000)}catch(e){toast(e.message)}},
+pick(v){const q=X.qs[X.i];X.ans[q.id]=+v;if(X.mode==='p')A.checkAns(q.id,+v);render()},
+async chk(){const q=X.qs[X.i];if(X.mode!=='p'||X.fb[q.id])return;const v=$('#sa')?.value;if(!(v||'').trim())return toast('กรุณาพิมพ์คำตอบก่อน');X.ans[q.id]=v;await A.checkAns(q.id,v)},
+async checkAns(qid,val){try{const r=await api('/api/exam/'+X.sid+'/check',{body:{questionId:qid,answer:val}});X.fb[qid]={ok:r.ok,rightAnswer:r.rightAnswer,explanation:r.explanation,rightIdx:r.rightIndex};render()}catch(e){toast(e.message)}},
+nx(){X.i++;render()},pv(){X.i--;render()},jp(v){X.i=+v;render()},fl(){const id=X.qs[X.i].id;X.flag[id]=!X.flag[id];render()},
+sub(auto){const un=X.qs.filter(q=>X.ans[q.id]==null||X.ans[q.id]==='').length,fl=Object.values(X.flag).filter(Boolean).length;
+ if(auto)return A.finish();
+ ask(`ส่งข้อสอบหรือไม่?<div class="mut sm" style="font-weight:400;margin-top:6px">ยังไม่ได้ตอบ ${un} ข้อ · ปักธงไว้ ${fl} ข้อ</div>`,A.finish,'ส่งข้อสอบ')},
+async finish(){clearInterval(tm);closeM();try{const r=await api('/api/exam/'+X.sid+'/submit',{body:{answers:X.ans,sec:Math.round((Date.now()-X.t0)/1e3),away:X.away,guestName:X.guestName}});
+   R=r;X=null;view='result';render();if(me)A.histAll(false)}catch(e){toast(e.message)}},
+
+// ---- Live rooms ----
+connectSocket(){if(socket)return socket;socket=io({auth:{token:token||undefined}});
+ socket.on('room:players',list=>{if(LIVE){LIVE.players=list;render()}});
+ socket.on('room:question',q=>{if(LIVE){LIVE.status='question';LIVE.question=q;LIVE.myAnswered=false;LIVE.lastReveal=null;render();clearInterval(liveTick);liveTick=setInterval(()=>{if(LIVE&&LIVE.status==='question')render()},1000)}});
+ socket.on('room:reveal',d=>{if(LIVE){clearInterval(liveTick);LIVE.status='reveal';LIVE.lastReveal=d;render()}});
+ socket.on('room:ended',d=>{if(LIVE){clearInterval(liveTick);LIVE.status='ended';LIVE.leaderboard=d.leaderboard;render()}});
+ socket.on('room:hostLeft',()=>{if(LIVE){toast('ผู้เปิดห้องออกจากห้องแล้ว');LIVE=null;clearInterval(liveTick);view='home';render()}});
+ return socket},
+hostRoom(setId){if(!me)return toast('เข้าสู่ระบบก่อนเพื่อเปิดห้องสอบสด');const sk=A.connectSocket();
+ sk.emit('host:create',{setId},res=>{if(res.error)return toast(res.error);LIVE={role:'host',pin:res.pin,title:res.title,total:res.total,players:[],status:'lobby'};view='live';render()})},
+joinRoom(){const pin=$('#jpin')?.value.trim(),nick=$('#jnick')?.value.trim();if(!pin||!nick)return toast('กรอก PIN และชื่อเล่นให้ครบ');const sk=A.connectSocket();
+ sk.emit('player:join',{pin,nickname:nick},res=>{if(res.error)return toast(res.error);LIVE={role:'player',pin,title:res.title,nickname:nick,status:'lobby',myAnswered:false};view='live';render()})},
+liveStart(){socket.emit('host:start',{pin:LIVE.pin},res=>{res&&res.error&&toast(res.error)})},
+liveNext(){socket.emit('host:next',{pin:LIVE.pin},res=>{res&&res.error&&toast(res.error)})},
+liveAnswer(v){if(!LIVE||LIVE.myAnswered)return;LIVE.myAnswered=true;render();socket.emit('player:answer',{pin:LIVE.pin,answer:+v},res=>{if(res&&res.error){toast(res.error);return}LIVE.myLastCorrect=res.correct;LIVE.myLastPoints=res.points})},
+};
+document.addEventListener('click',e=>{const b=e.target.closest('[data-a]');if(b&&A[b.dataset.a])A[b.dataset.a](b.dataset.v)});
+boot();
+</script>
+</body>
+</html>
