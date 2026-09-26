@@ -15,15 +15,60 @@ backend จริง (Node.js + Express + SQLite + Socket.io) ให้ครบ
   "ไม่ใช่ความปลอดภัยจริง"
 - **ล็อกอินจริง** — สมัคร/เข้าสู่ระบบด้วยอีเมล+รหัสผ่าน (bcrypt + JWT) แทนปุ่ม "จำลอง Google" เดิม
 
-## วิธีรัน
+## อัปเดต: ย้ายฐานข้อมูลไป Turso + รองรับ deploy บน Vercel
+
+เดิมไฟล์นี้ใช้ `better-sqlite3` เขียนไฟล์ `.db` ในเครื่อง ซึ่งใช้กับ Vercel ไม่ได้เพราะ
+serverless ไม่มีดิสก์ถาวร ตอนนี้เปลี่ยนไปใช้ **Turso** (libSQL แบบเดียวกับ SQLite แต่เก็บบน
+คลาวด์ผ่านเครือข่าย ให้ฟรี 5GB) แทน — โครงสร้างตาราง/คำสั่ง SQL เดิมทุกอย่างเหมือนเดิม
+เปลี่ยนแค่ชั้นเชื่อมต่อ (`server/db.js`)
+
+### 1. สมัคร Turso และสร้างฐานข้อมูล
+
+```bash
+# ติดตั้ง Turso CLI (ครั้งเดียว) แล้วสมัคร/ล็อกอิน
+curl -sSfL https://get.tur.so/install.sh | bash
+turso auth signup   # หรือ turso auth login ถ้ามีบัญชีแล้ว
+
+# สร้างฐานข้อมูล
+turso db create examhub
+
+# ดึง URL และสร้าง token
+turso db show examhub --url
+turso db tokens create examhub
+```
+(หรือสมัครผ่านหน้าเว็บ https://turso.tech ก็ได้ ไม่จำเป็นต้องใช้ CLI)
+
+คัดลอกค่า URL และ token มาใส่ในไฟล์ `.env` (ดูตัวอย่างที่ `.env.example`)
+
+### 2. รันในเครื่องตัวเอง
 
 ```bash
 npm install
+cp .env.example .env   # แล้วแก้ค่าจริงในไฟล์ .env
 npm start
 ```
 
 เปิด `http://localhost:3000` — ผู้ใช้ที่สมัครสมาชิกคนแรกจะได้สิทธิ์ผู้ดูแลระบบ (admin) โดยอัตโนมัติ
-ฐานข้อมูล SQLite จะถูกสร้างที่ `server/examhub.db` พร้อมชุดข้อสอบตัวอย่าง 2 ชุดในการรันครั้งแรก
+ตาราง + ชุดข้อสอบตัวอย่าง 2 ชุดจะถูกสร้างในฐานข้อมูล Turso อัตโนมัติตอนรันครั้งแรก
+
+### 3. Deploy ขึ้น Vercel (ฟรี)
+
+1. Push โค้ดนี้ขึ้น GitHub ให้เรียบร้อยก่อน
+2. ไปที่ https://vercel.com → New Project → เลือก repo `examonline`
+3. ในหน้า Environment Variables ใส่ 3 ตัวแปรนี้ (ค่าเดียวกับใน `.env`):
+   - `TURSO_DATABASE_URL`
+   - `TURSO_AUTH_TOKEN`
+   - `JWT_SECRET` (ตั้งค่าสุ่มยาวๆ ของตัวเอง ห้ามใช้ค่า default)
+4. กด Deploy — Vercel จะรัน `api/index.js` เป็น Function หลัก (ดู `vercel.json`) ซึ่ง
+   export ตัว HTTP server ตรงๆ ให้รองรับ WebSocket/Socket.IO ของห้องสอบสดได้ด้วย
+   (ฟีเจอร์ WebSocket ของ Vercel ยังเป็น public beta ตั้งแต่ มิ.ย. 2026)
+
+**ข้อจำกัดที่ควรรู้บน Vercel:**
+- รูปภาพที่อัปโหลด (`/api/upload`) เขียนไปที่ `/tmp` ซึ่งไม่ถาวร จะหายเมื่อ instance
+  ถูกเลิกใช้ ใช้ได้สำหรับทดลอง ถ้าจะใช้จริงควรย้ายไป object storage (เช่น Vercel Blob, S3)
+- ห้องสอบสด (Kahoot) เก็บสถานะห้องไว้ใน memory ของ 1 process ถ้า Vercel กระจาย
+  หลาย instance โฮสต์กับผู้เล่นอาจไปคนละ instance ทำให้ใช้งานไม่ได้แน่นอน — ถ้าฟีเจอร์นี้
+  สำคัญ แนะนำให้รันเฉพาะส่วนนี้บนโฮสต์แบบ process เดียวต่อเนื่อง (เช่น Render) แทน
 
 ## โครงสร้างไฟล์
 

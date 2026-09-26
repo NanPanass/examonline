@@ -4,11 +4,11 @@
   "description": "ExamHub - ระบบสอบออนไลน์ พร้อม backend กลาง, auth จริง, โจทย์/คำตอบรูปภาพ, และห้องสอบสดแบบ Kahoot",
   "main": "server/server.js",
   "scripts": {
-    "start": "node server/server.js",
-    "dev": "node server/server.js"
+    "start": "node --env-file=.env server/server.js",
+    "dev": "node --env-file=.env server/server.js"
   },
   "dependencies": {
-    "better-sqlite3": "^11.3.0",
+    "@libsql/client": "^0.14.0",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
     "express": "^4.19.2",

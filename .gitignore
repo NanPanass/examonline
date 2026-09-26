@@ -1,7 +1,5 @@
 node_modules/
-server/examhub.db
-server/examhub.db-journal
-server/examhub.db-wal
-server/examhub.db-shm
+.env
+.vercel
 server/uploads/*
 !server/uploads/.gitkeep
