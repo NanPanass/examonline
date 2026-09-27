@@ -137,7 +137,7 @@ async function uploadImg(file){
 
 // ---------- App state ----------
 let me=null,sets=[],view='home',cat='ทั้งหมด',X=null,R=null,tm=null;
-let resultsList=[],adminUsers=[],edSet=null,EID=null,QID=null,edQ=null,CB=null;
+let resultsList=[],adminUsers=[],edSet=null,EID=null,QID=null,edQ=null,CB=null,IMP=[];
 let socket=null,LIVE=null,liveTick=null;
 
 function modal(h){closeM();const d=document.createElement('div');d.className='ov';d.id='ov';d.innerHTML='<div class="md">'+h+'</div>';document.body.appendChild(d)}
@@ -188,7 +188,7 @@ return `<div class="row"><div><h2>ระบบหลังบ้าน</h2><div 
 
 V.edit=()=>{const s=edSet,catOpts=[...new Set([...CATS,s.cat])];
 return `<div class="row"><h2>แก้ไขชุดข้อสอบ</h2><button class="btn" data-a="go" data-v="admin">← กลับ</button></div><div class="card"><div class="two"><div><label class="f">ชื่อชุดข้อสอบ</label><input class="inp" value="${esc(s.title)}" onchange="A.setField('title',this.value)"></div><div><label class="f">ประเภท</label><select class="inp" onchange="A.setField('cat',this.value)">${catOpts.map(c=>`<option value="${esc(c)}" ${s.cat===c?'selected':''}>${esc(c)}</option>`).join('')}</select></div><div><label class="f">เวลา (นาที)</label><input class="inp" type="number" min="0" value="${s.time}" onchange="A.setField('time',+this.value||0)"></div></div><label class="f">คำอธิบายสั้น ๆ</label><input class="inp" value="${esc(s.desc||'')}" onchange="A.setField('desc',this.value)"><label class="f"><input type="checkbox" ${s.is_public?'checked':''} onchange="A.setField('is_public',this.checked)"> เผยแพร่แบบสาธารณะ (ทุกคนเห็นในหน้าแรก)</label></div>
-<div class="row" style="margin-top:20px"><h3>ข้อสอบ (${s.questions.length} ข้อ)</h3><button class="btn pri" data-a="qed" data-v="">+ เพิ่มข้อสอบ</button></div><div class="card"><table>${s.questions.map((q,i)=>`<tr><td>${i+1}</td><td>${q.q_image?'🖼 ':''}${esc(q.q)}<div class="mut sm">${q.type==='mc'?'ปรนัย':'อัตนัย'} · เฉลย: ${esc(q.type==='mc'?(q.choices[q.answer]?.text||''):q.answer.join(' / '))}</div></td><td style="white-space:nowrap"><button class="btn sm" data-a="qed" data-v="${q.id}">แก้ไข</button> <button class="btn sm del" data-a="qdel" data-v="${q.id}">ลบ</button></td></tr>`).join('')||'<tr><td class="mut">ยังไม่มีข้อสอบในชุดนี้</td></tr>'}</table></div>`};
+<div class="row" style="margin-top:20px"><h3>ข้อสอบ (${s.questions.length} ข้อ)</h3><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" data-a="imp">📥 นำเข้าจากไฟล์</button><button class="btn pri" data-a="qed" data-v="">+ เพิ่มข้อสอบ</button></div></div><div class="card"><table>${s.questions.map((q,i)=>`<tr><td>${i+1}</td><td>${q.q_image?'🖼 ':''}${esc(q.q)}<div class="mut sm">${q.type==='mc'?'ปรนัย':'อัตนัย'} · เฉลย: ${esc(q.type==='mc'?(q.choices[q.answer]?.text||''):q.answer.join(' / '))}</div></td><td style="white-space:nowrap"><button class="btn sm" data-a="qed" data-v="${q.id}">แก้ไข</button> <button class="btn sm del" data-a="qdel" data-v="${q.id}">ลบ</button></td></tr>`).join('')||'<tr><td class="mut">ยังไม่มีข้อสอบในชุดนี้</td></tr>'}</table></div>`};
 
 // ---------- Live room view ----------
 function timeLeftPct(){if(!LIVE||!LIVE.question)return 0;const el=Date.now()-LIVE.question.startedAt;return Math.max(0,100-el/(LIVE.question.seconds*1000)*100)}
@@ -256,6 +256,19 @@ async qsave(){const q=edQ,body={type:q.type,q:(q.q||'').trim(),q_image:q.q_image
  try{if(QID)await api('/api/admin/questions/'+QID,{method:'PUT',body});else await api('/api/admin/sets/'+EID+'/questions',{body});
    edSet=await api('/api/admin/sets/'+EID);await loadSets();closeM();render()}catch(e){toast(e.message)}},
 
+// ---- Import questions from file ----
+imp(){IMP=[];modal(`<h3>นำเข้าข้อสอบจากไฟล์</h3><p class="mut sm">รองรับ Word (.docx), Excel (.xlsx/.xls/.csv), PDF, รูปภาพ (JPG/PNG/GIF/WEBP), Markdown และ .txt — ระบบจะใช้ AI ช่วยแยกโจทย์ ตัวเลือก และเฉลยให้อัตโนมัติ ทั้งปรนัยและอัตนัย</p><input class="inp" type="file" id="ifl" accept=".docx,.xlsx,.xls,.csv,.pdf,.txt,.md,image/*" onchange="A.impRun(this.files[0])"><div id="ist"></div>`)},
+async impRun(file){if(!file)return;const set=h=>{const e=$('#ist');if(e)e.innerHTML=h};
+ set('<div class="fb" style="background:var(--soft)">⏳ กำลังอ่านและแยกข้อสอบ… (อาจใช้เวลาถึง 1 นาทีสำหรับไฟล์รูปภาพ/PDF)</div>');
+ try{const fd=new FormData();fd.append('file',file);const r=await api('/api/admin/import',{body:fd});
+   IMP=r.questions.map(x=>({...x,on:true}));
+   set(A.impListHtml(r.source))}
+ catch(e){set(`<div class="fb bad">${esc(e.message)}</div>`)}},
+impListHtml(source){return `<div class="fb ok">พบ ${IMP.length} ข้อ (แยกโดย${esc(source)}) ตรวจสอบก่อนเพิ่มเข้าชุดข้อสอบ</div><div style="max-height:44vh;overflow:auto;margin-top:10px">${IMP.map((x,i)=>`<label class="opt" style="align-items:flex-start"><input type="checkbox" ${x.on?'checked':''} onchange="IMP[${i}].on=this.checked"><span><span class="tag">${x.t==='mc'?'ปรนัย':'อัตนัย'}</span> ${esc(x.q)}<div class="mut sm">${x.t==='mc'?x.ch.map((c,k)=>(k===x.a?'✅ ':'')+L[k]+'. '+esc(c)).join(' · '):'เฉลย: '+esc(x.a.join(' / '))}</div></span></label>`).join('')}</div><div class="foot"><span class="sp"></span><button class="btn" data-a="cm">ยกเลิก</button><button class="btn pri" data-a="impAdd">เพิ่มเข้าชุดข้อสอบ</button></div>`},
+async impAdd(){const sel=IMP.filter(x=>x.on).map(({on,...x})=>x);if(!sel.length)return toast('เลือกอย่างน้อย 1 ข้อ');
+ try{const r=await api('/api/admin/sets/'+EID+'/questions/bulk',{body:{questions:sel}});
+   edSet=await api('/api/admin/sets/'+EID);await loadSets();closeM();render();toast('เพิ่ม '+r.added+' ข้อแล้ว')}catch(e){toast(e.message)}},
+
 setup(id){const s=sets.find(x=>x.id===id),nm=s.mcCount,ns=s.saCount;
  modal(`<h3>${esc(s.title)}</h3><p class="mut sm">${s.qCount} ข้อ · ${s.time?s.time+' นาที':'ไม่จำกัดเวลา'}</p>${!me?`<label class="f">ชื่อที่ใช้แสดงผล (ทำในฐานะผู้เยี่ยมชม)</label><input class="inp" id="gname" placeholder="ชื่อของคุณ">`:''}<div class="sec">โหมดการสอบ</div><label class="opt"><input type="radio" name="md" value="m" checked><span><b style="display:inline">โหมดสอบจริง</b><br><small class="mut">จับเวลา · ดูเฉลยหลังส่งข้อสอบ</small></span></label><label class="opt"><input type="radio" name="md" value="p"><span><b style="display:inline">โหมดฝึกฝน</b><br><small class="mut">ไม่จับเวลา · ตรวจและดูเฉลยทีละข้อ</small></span></label><div class="sec">รูปแบบข้อสอบ</div><label class="opt"><input type="radio" name="fm" value="all" checked><span><b style="display:inline">แบบผสม</b> ปรนัย + อัตนัย<br><small class="mut">${s.qCount} ข้อ</small></span></label><label class="opt" ${nm?'':'style="opacity:.45"'}><input type="radio" name="fm" value="mc" ${nm?'':'disabled'}><span><b style="display:inline">ปรนัยล้วน</b><br><small class="mut">${nm} ข้อ</small></span></label><label class="opt" ${ns?'':'style="opacity:.45"'}><input type="radio" name="fm" value="sa" ${ns?'':'disabled'}><span><b style="display:inline">อัตนัยล้วน</b><br><small class="mut">${ns} ข้อ</small></span></label><div class="sec">ตัวเลือกเพิ่มเติม</div><label class="opt"><input type="checkbox" id="shf"><span>สลับลำดับข้อสอบ</span></label><div class="foot"><span class="sp"></span><button class="btn" data-a="cm">ยกเลิก</button><button class="btn pri" data-a="start" data-v="${id}">เริ่มสอบ</button></div>`)},
 async start(id){const md=$('input[name=md]:checked').value,fm=$('input[name=fm]:checked').value,shuffle=$('#shf').checked,gname=$('#gname');
@@ -274,7 +287,7 @@ async finish(){clearInterval(tm);closeM();try{const r=await api('/api/exam/'+X.s
    R=r;X=null;view='result';render();if(me)A.histAll(false)}catch(e){toast(e.message)}},
 
 // ---- Live rooms ----
-connectSocket(){if(socket)return socket;socket=io({auth:{token:token||undefined}});
+connectSocket(){if(socket)return socket;socket=io({auth:{token:token||undefined},transports:['websocket']});
  socket.on('room:players',list=>{if(LIVE){LIVE.players=list;render()}});
  socket.on('room:question',q=>{if(LIVE){LIVE.status='question';LIVE.question=q;LIVE.myAnswered=false;LIVE.lastReveal=null;render();clearInterval(liveTick);liveTick=setInterval(()=>{if(LIVE&&LIVE.status==='question')render()},1000)}});
  socket.on('room:reveal',d=>{if(LIVE){clearInterval(liveTick);LIVE.status='reveal';LIVE.lastReveal=d;render()}});

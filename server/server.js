@@ -13,6 +13,8 @@ const fs = require('fs');
 const express = require('express');
 const cors = require('cors');
 const multer = require('multer');
+const mammoth = require('mammoth');
+const XLSX = require('xlsx');
 const { v4: uuid } = require('uuid');
 const http = require('http');
 const { Server } = require('socket.io');
@@ -162,6 +164,130 @@ app.post('/api/upload', requireAuth, requireAdmin, upload.single('image'), (req,
   if (!req.file) return res.status(400).json({ error: 'ไม่พบไฟล์รูปภาพ หรือไฟล์ไม่ใช่ png/jpg/webp/gif' });
   res.json({ url: '/uploads/' + req.file.filename });
 });
+
+// ---------- Import questions from a file (Word / Excel / PDF / image / md / txt) ----------
+// ไฟล์ที่อ่านออกเป็นข้อความ (docx, xlsx, md, txt) ถูกดึงข้อความออกมาก่อนแล้วส่งให้ AI ช่วยแยกข้อสอบ
+// ไฟล์ที่เป็นภาพ/PDF ส่งเป็นรูป/เอกสารตรงให้ AI (Claude รองรับ vision อยู่แล้ว) โดยไม่ต้อง OCR เอง
+// ถ้าไม่ได้ตั้งค่า ANTHROPIC_API_KEY ไว้ ระบบจะ fallback ไปใช้ตัวแยกแบบ regex สำหรับไฟล์ข้อความล้วน
+const importUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 15 * 1024 * 1024 } });
+const IMPORT_PROMPT = `คุณคือผู้ช่วยแยกข้อสอบจากเอกสาร อ่านเนื้อหาที่แนบมาทั้งหมดอย่างละเอียด แล้วแยกข้อสอบทุกข้อออกมา
+ตอบกลับเป็น JSON array เท่านั้น ห้ามมีข้อความอื่นนอกเหนือจาก JSON ห้ามใช้ \`\`\` ล้อมคำตอบ
+แต่ละข้อในอาเรย์เป็นหนึ่งในสองรูปแบบ:
+ปรนัย: {"t":"mc","q":"โจทย์","ch":["ตัวเลือกที่ 1","ตัวเลือกที่ 2", ...],"a":เลขลำดับตัวเลือกที่ถูกเริ่มที่ 0,"ex":"คำอธิบายเฉลยสั้นๆ หรือค่าว่าง"}
+อัตนัย (มีคำตอบตายตัว): {"t":"sa","q":"โจทย์","a":["คำตอบที่ยอมรับ 1","คำตอบที่ยอมรับ 2 ถ้ามี"],"ex":""}
+กติกา:
+- อย่าใส่ตัวอักษรนำหน้าตัวเลือก (ก. ข. A. B. 1. 2.) ปนอยู่ในข้อความตัวเลือก ให้ตัดออก
+- ถ้าเอกสารระบุเฉลยไว้ (ไม่ว่าจะอยู่ติดกับโจทย์หรือแยกเป็นหน้าเฉลยท้ายเล่ม) ให้จับคู่แล้วใช้เฉลยนั้น
+- ถ้าไม่มีเฉลยระบุไว้เลย ให้เลือกคำตอบที่ถูกต้องที่สุดตามความรู้ทั่วไป
+- คงภาษาของเอกสารต้นฉบับ ไม่แปล
+- ข้ามส่วนที่ไม่ใช่ข้อสอบ เช่น คำนำ หน้าปก เลขหน้า
+- ถ้าไม่พบข้อสอบเลย ให้ตอบเป็น [] (อาเรย์ว่าง)`;
+
+async function callClaudeExtract({ text, fileBuffer, mediaType }) {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) { const e = new Error('NO_API_KEY'); e.code = 'NO_API_KEY'; throw e; }
+  const content = [];
+  if (fileBuffer) {
+    const isPdf = mediaType === 'application/pdf';
+    content.push({ type: isPdf ? 'document' : 'image', source: { type: 'base64', media_type: mediaType, data: fileBuffer.toString('base64') } });
+  }
+  content.push({ type: 'text', text: text ? `เนื้อหาที่แยกได้จากเอกสาร:\n\n${text.slice(0, 60000)}` : 'แยกข้อสอบจากไฟล์ที่แนบมา' });
+  const resp = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
+    body: JSON.stringify({ model: process.env.ANTHROPIC_MODEL || 'claude-sonnet-5', max_tokens: 8000, system: IMPORT_PROMPT, messages: [{ role: 'user', content }] }),
+  });
+  if (!resp.ok) { const t = await resp.text().catch(() => ''); throw new Error('เรียก AI ไม่สำเร็จ (' + resp.status + ') ' + t.slice(0, 200)); }
+  const data = await resp.json();
+  const raw = (data.content || []).map(b => b.text || '').join('').trim().replace(/^```json?/i, '').replace(/```$/,'').trim();
+  let parsed;
+  try { parsed = JSON.parse(raw); } catch (e) { throw new Error('AI ตอบกลับไม่ใช่ JSON ที่อ่านได้ ลองใหม่อีกครั้ง'); }
+  return Array.isArray(parsed) ? parsed : (parsed.questions || []);
+}
+
+// ตัวแยกสำรองแบบไม่ใช้ AI (ใช้เมื่อไม่ได้ตั้งค่า ANTHROPIC_API_KEY) รองรับเฉพาะไฟล์ข้อความ
+function heuristicExtract(text) {
+  const T = 'กขคงจฉชซฌ';
+  let blocks = ('\n' + text).split(/\n(?=\s*(?:ข้อ\s*)?\d{1,3}\s*[.)]\s)/);
+  if (blocks.length < 3) blocks = text.split('\n').filter(l => l.includes('='));
+  const out = [];
+  for (const b of blocks) {
+    const qLines = [], choices = []; let ans = '';
+    for (const l of b.split('\n').map(x => x.trim()).filter(Boolean)) {
+      let m;
+      if ((m = l.match(/^(?:เฉลย|คำตอบ|ตอบ|answer|ans)\s*[:：\-]?\s*(.+)$/i))) { ans = m[1].trim(); continue; }
+      if ((m = l.match(/^\(?([A-Ha-hก-ฌ])[.)]\s*(.+)$/))) { choices.push(m[2]); continue; }
+      qLines.push(l);
+    }
+    const q = qLines.join(' ').replace(/^(?:ข้อ\s*)?\d{1,3}\s*[.)]\s*/, '').trim();
+    if (!q) continue;
+    const eq = q.match(/^(.*?)\s*[=＝]\s*(.+)$/);
+    if (choices.length > 1) {
+      const k = ans.replace(/[().\s]/g, '').charAt(0);
+      let idx = T.indexOf(k); if (idx < 0) idx = 'abcdefgh'.indexOf(k.toLowerCase());
+      out.push({ t: 'mc', q, ch: choices, a: idx >= 0 && idx < choices.length ? idx : 0, ex: '' });
+    } else if (ans) out.push({ t: 'sa', q, a: ans.split(/\s*[\/|]\s*/).filter(Boolean), ex: '' });
+    else if (eq) out.push({ t: 'sa', q: eq[1].trim(), a: eq[2].split(/\s*[\/|]\s*/).filter(Boolean), ex: '' });
+  }
+  return out;
+}
+
+const IMAGE_MEDIA = { '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.gif': 'image/gif', '.webp': 'image/webp' };
+
+app.post('/api/admin/import', requireAuth, requireAdmin, importUpload.single('file'), ah(async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'ไม่พบไฟล์ที่อัปโหลด' });
+  const ext = path.extname(req.file.originalname || '').toLowerCase();
+  const buf = req.file.buffer;
+  let list, source;
+  try {
+    if (ext === '.pdf' || IMAGE_MEDIA[ext]) {
+      list = await callClaudeExtract({ fileBuffer: buf, mediaType: ext === '.pdf' ? 'application/pdf' : IMAGE_MEDIA[ext] });
+      source = 'AI (อ่านไฟล์โดยตรง)';
+    } else {
+      let text = '';
+      if (ext === '.docx') text = (await mammoth.extractRawText({ buffer: buf })).value;
+      else if (ext === '.xlsx' || ext === '.xls' || ext === '.csv') {
+        const wb = XLSX.read(buf, { type: 'buffer' });
+        text = wb.SheetNames.map(n => XLSX.utils.sheet_to_csv(wb.Sheets[n])).join('\n\n');
+      } else if (ext === '.txt' || ext === '.md') text = buf.toString('utf-8');
+      else return res.status(400).json({ error: 'ไม่รองรับไฟล์นามสกุลนี้ รองรับ .docx .xlsx .xls .csv .pdf .jpg .png .gif .webp .txt .md' });
+      if (!text.trim()) return res.status(400).json({ error: 'ไม่พบข้อความในไฟล์นี้' });
+      try { list = await callClaudeExtract({ text }); source = 'AI'; }
+      catch (e) { if (e.code !== 'NO_API_KEY') throw e; list = heuristicExtract(text); source = 'ตัวแยกอัตโนมัติ (ยังไม่ได้ตั้งค่า AI — ผลลัพธ์อาจไม่แม่นยำเท่า)'; }
+    }
+  } catch (e) {
+    if (e.code === 'NO_API_KEY') return res.status(400).json({ error: 'ไฟล์นี้ต้องใช้ AI ช่วยอ่าน (รูปภาพ/PDF) แต่เซิร์ฟเวอร์ยังไม่ได้ตั้งค่า ANTHROPIC_API_KEY กรุณาตั้งค่าก่อนใช้งาน' });
+    throw e;
+  }
+  list = (list || []).filter(x => x && x.q && (
+    x.t === 'mc' ? Array.isArray(x.ch) && x.ch.length >= 2 && Number.isInteger(x.a) && x.a >= 0 && x.a < x.ch.length
+      : Array.isArray(x.a) && x.a.length
+  )).map(x => ({ ...x, ex: x.ex || '' }));
+  if (!list.length) return res.status(400).json({ error: 'ไม่พบข้อสอบในไฟล์นี้ ลองตรวจรูปแบบไฟล์หรือใช้ไฟล์อื่น' });
+  res.json({ source, questions: list });
+}));
+
+app.post('/api/admin/sets/:id/questions/bulk', requireAuth, requireAdmin, ah(async (req, res) => {
+  const s = await db.prepare('SELECT id FROM sets WHERE id=?').get(req.params.id);
+  if (!s) return res.status(404).json({ error: 'ไม่พบชุดข้อสอบ' });
+  const items = Array.isArray(req.body.questions) ? req.body.questions : [];
+  let ord = (await db.prepare('SELECT COALESCE(MAX(ord),-1)+1 n FROM questions WHERE set_id=?').get(s.id)).n;
+  let added = 0;
+  for (const it of items) {
+    const type = it.t === 'sa' ? 'sa' : 'mc';
+    const q = { id: uuid(), set_id: s.id, ord: ord++, type,
+      q: String(it.q || '').trim(), q_image: null,
+      choices: type === 'mc' ? JSON.stringify((it.ch || []).map(c => ({ text: c, image: null }))) : null,
+      answer: JSON.stringify(type === 'mc' ? it.a : (it.a || [])),
+      explanation: it.ex || '' };
+    if (!q.q) continue;
+    if (type === 'mc' && (!it.ch || it.ch.length < 2)) continue;
+    if (type === 'sa' && (!it.a || !it.a.length)) continue;
+    await db.prepare('INSERT INTO questions (id,set_id,ord,type,q,q_image,choices,answer,explanation) VALUES (@id,@set_id,@ord,@type,@q,@q_image,@choices,@answer,@explanation)').run(q);
+    added++;
+  }
+  res.json({ ok: true, added });
+}));
 
 app.get('/api/admin/users', requireAuth, requireAdmin, ah(async (req, res) => {
   res.json(await db.prepare('SELECT id,email,name,role,created_at FROM users ORDER BY created_at ASC').all());
