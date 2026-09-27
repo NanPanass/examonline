@@ -24,6 +24,7 @@ nav{display:flex;gap:4px;flex:1;flex-wrap:wrap}
 .nv{border:0;background:none;color:var(--mut);font:inherit;padding:7px 14px;border-radius:10px;cursor:pointer}
 .nv.on{background:var(--soft);color:var(--pri);font-weight:600;box-shadow:inset 0 -2px 0 var(--gold)}
 .usr{display:flex;align-items:center;gap:8px}
+@media(max-width:480px){.hd{padding:8px 14px;gap:8px}.brand{font-size:1rem}nav{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}nav::-webkit-scrollbar{display:none}.nv{padding:6px 11px;font-size:.85rem;white-space:nowrap;flex:none}.usr .sm{display:none}}
 .av{width:30px;height:30px;border-radius:50%;background:var(--pri);color:var(--onpri);display:grid;place-items:center;font-weight:600}
 .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:20px;box-shadow:0 1px 2px rgba(30,42,74,.05)}
 .btn{font:inherit;border:1px solid var(--line);background:var(--card);color:var(--ink);padding:9px 18px;border-radius:11px;cursor:pointer;font-weight:500}
@@ -80,8 +81,9 @@ label.f{font-size:.85rem;font-weight:600;color:var(--mut)}
 .ring div{width:100px;height:100px;border-radius:50%;background:var(--card);display:grid;place-items:center;font-size:1.6rem;font-weight:700;color:var(--pri)}
 .rv{margin-top:14px;border-left:4px solid var(--line)}
 .rv.ok{border-left-color:var(--ok)}.rv.bad{border-left-color:var(--bad)}
-table{width:100%;border-collapse:collapse}
-td,th{text-align:left;padding:10px 8px;border-bottom:1px solid var(--line);font-size:.92rem;vertical-align:top}
+table{width:100%;border-collapse:collapse;display:block;overflow-x:auto;-webkit-overflow-scrolling:touch}
+td,th{text-align:left;padding:10px 8px;border-bottom:1px solid var(--line);font-size:.92rem;vertical-align:top;white-space:nowrap}
+td.wrap{white-space:normal}
 th{color:var(--mut);font-weight:600}
 .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:space-between;margin-bottom:14px}
 .two{display:grid;grid-template-columns:1fr 1fr 110px;gap:12px}
@@ -90,11 +92,13 @@ th{color:var(--mut);font-weight:600}
 .md{background:var(--card);border-radius:18px;padding:24px;width:100%;max-width:560px;max-height:90vh;overflow:auto}
 .toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 20px;border-radius:99px;z-index:30}
 .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;margin:16px 0}
+@media(max-width:480px){.stats{grid-template-columns:repeat(3,1fr);gap:8px}.stats .stat b{font-size:1.4rem}}
 .stat{text-align:center;border-top:2px solid var(--gold)}.stat b{display:block;font:600 1.9rem 'Noto Serif Thai',Georgia,serif;color:var(--pri)}.stat span{color:var(--mut);font-size:.85rem}
 .sec{font-size:.78rem;font-weight:600;color:var(--gold);letter-spacing:.06em;margin:14px 0 8px}
 .lg{min-height:70vh;display:grid;place-items:center;padding:20px}
 .lgc{max-width:440px;text-align:center;padding:36px 28px;border-top:3px solid var(--gold)}
-.crow{display:flex;gap:8px;align-items:flex-start;border:1px solid var(--line);border-radius:12px;padding:10px;margin-bottom:8px;background:var(--soft)}
+.crow{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-start;border:1px solid var(--line);border-radius:12px;padding:10px;margin-bottom:8px;background:var(--soft)}
+.crow>div{min-width:180px}
 .crow .inp{margin:0 0 6px}
 .thumb-sm{width:56px;height:56px;object-fit:cover;border-radius:8px;border:1px solid var(--line)}
 .pin{font:700 3rem/1 'Noto Serif Thai',Georgia,serif;letter-spacing:.08em;color:var(--pri);text-align:center;margin:10px 0}
@@ -137,7 +141,8 @@ async function uploadImg(file){
 
 // ---------- App state ----------
 let me=null,sets=[],view='home',cat='ทั้งหมด',X=null,R=null,tm=null;
-let resultsList=[],adminUsers=[],edSet=null,EID=null,QID=null,edQ=null,CB=null,IMP=[];
+let resultsList=[],adminUsers=[],edSet=null,EID=null,QID=null,edQ=null,CB=null,IMP=[],SDIRTY=false;
+function markDirty(){SDIRTY=true;document.querySelectorAll('.ssaveBtn').forEach(b=>{b.classList.add('pri');b.textContent='💾 บันทึกการเปลี่ยนแปลง'});const bar=$('#dirtyBar');if(bar)bar.style.display=''}
 let socket=null,LIVE=null,liveTick=null;
 
 function modal(h){closeM();const d=document.createElement('div');d.className='ov';d.id='ov';d.innerHTML='<div class="md">'+h+'</div>';document.body.appendChild(d)}
@@ -179,16 +184,17 @@ return `<div class="card sc"><div class="ring" style="--p:${p}"><div>${p}%</div>
 ${R.detail.map((x,i)=>`<div class="card rv ${x.correct?'ok':'bad'}"><div class="qn">ข้อ ${i+1} · ${x.correct?'ถูก':'ผิด'}</div><div class="qt">${esc(x.q)}</div><div>คำตอบของคุณ: <b>${esc(myA(x))}</b></div>${x.correct?'':`<div>เฉลย: <b style="color:var(--ok)">${esc(x.rightAnswer)}</b></div>`}${x.explanation?`<div class="mut sm" style="margin-top:6px">💡 ${esc(x.explanation)}</div>`:''}</div>`).join('')}`};
 
 V.hist=()=>{if(!me)return `<h2>ประวัติผลสอบ</h2><p class="mut">เข้าสู่ระบบเพื่อบันทึกและดูประวัติผลสอบของคุณ (การทำข้อสอบแบบผู้เยี่ยมชมจะไม่ถูกผูกกับบัญชี)</p><button class="btn pri" data-a="authm">เข้าสู่ระบบ</button>`;
-return `<div class="row"><h2>ประวัติผลสอบ</h2>${adm()?`<label class="sm mut"><input type="checkbox" id="hall" onchange="A.histAll(this.checked)"> แสดงของทุกคน</label>`:''}</div>${resultsList.length?`<div class="card"><table><tr><th>ชุดข้อสอบ</th>${adm()?'<th>ผู้สอบ</th>':''}<th>คะแนน</th><th>วันที่</th><th></th></tr>${resultsList.map(r=>`<tr><td>${esc(r.title)}</td>${adm()?`<td>${esc(r.email||'-')}</td>`:''}<td>${r.score}/${r.total} (${Math.round(r.score/r.total*100)}%)</td><td>${new Date(r.date).toLocaleString('th-TH')}</td><td><button class="btn sm" data-a="open" data-v="${r.id}">ดูเฉลย</button></td></tr>`).join('')}</table></div>`:'<p class="mut">ยังไม่มีประวัติการสอบ</p>'}`};
+return `<div class="row"><h2>ประวัติผลสอบ</h2>${adm()?`<label class="sm mut"><input type="checkbox" id="hall" onchange="A.histAll(this.checked)"> แสดงของทุกคน</label>`:''}</div>${resultsList.length?`<div class="card"><table><tr><th>ชุดข้อสอบ</th>${adm()?'<th>ผู้สอบ</th>':''}<th>คะแนน</th><th>วันที่</th><th></th></tr>${resultsList.map(r=>`<tr><td class="wrap">${esc(r.title)}</td>${adm()?`<td>${esc(r.email||'-')}</td>`:''}<td>${r.score}/${r.total} (${Math.round(r.score/r.total*100)}%)</td><td>${new Date(r.date).toLocaleString('th-TH')}</td><td><button class="btn sm" data-a="open" data-v="${r.id}">ดูเฉลย</button></td></tr>`).join('')}</table></div>`:'<p class="mut">ยังไม่มีประวัติการสอบ</p>'}`};
 
 V.admin=()=>{const nq=sets.reduce((n,s)=>n+s.qCount,0);
 return `<div class="row"><div><h2>ระบบหลังบ้าน</h2><div class="mut sm">จัดการชุดข้อสอบ ข้อสอบ และผู้ใช้งาน</div></div><button class="btn pri" data-a="sadd">+ เพิ่มชุดข้อสอบ</button></div><div class="stats"><div class="card stat"><b>${sets.length}</b><span>ชุดข้อสอบ</span></div><div class="card stat"><b>${nq}</b><span>ข้อสอบทั้งหมด</span></div><div class="card stat"><b>${adminUsers.length}</b><span>ผู้ใช้งาน</span></div></div>
-<h3 style="margin-top:24px">ชุดข้อสอบ</h3><div class="card"><table><tr><th>ชื่อชุด</th><th>ประเภท</th><th>ข้อ</th><th>สถานะ</th><th></th></tr>${sets.map(s=>`<tr><td>${esc(s.title)}</td><td>${esc(s.cat)}</td><td>${s.qCount}</td><td>${s.is_public?'สาธารณะ':'ซ่อน'}</td><td style="white-space:nowrap"><button class="btn sm" data-a="sed" data-v="${s.id}">จัดการข้อสอบ</button> <button class="btn sm del" data-a="sdel" data-v="${s.id}">ลบ</button></td></tr>`).join('')}</table></div>
+<h3 style="margin-top:24px">ชุดข้อสอบ</h3><div class="card"><table><tr><th>ชื่อชุด</th><th>ประเภท</th><th>ข้อ</th><th>สถานะ</th><th></th></tr>${sets.map(s=>`<tr><td class="wrap">${esc(s.title)}</td><td>${esc(s.cat)}</td><td>${s.qCount}</td><td>${s.is_public?'สาธารณะ':'ซ่อน'}</td><td style="white-space:nowrap"><button class="btn sm" data-a="sed" data-v="${s.id}">จัดการข้อสอบ</button> <button class="btn sm del" data-a="sdel" data-v="${s.id}">ลบ</button></td></tr>`).join('')}</table></div>
 <h3 style="margin-top:24px">ผู้ใช้งาน</h3><div class="card"><table><tr><th>อีเมล</th><th>สิทธิ์</th><th></th></tr>${adminUsers.map(u=>`<tr><td>${esc(u.email)}</td><td>${u.role==='admin'?'ผู้ดูแล':'ผู้สอบ'}</td><td>${u.id===me.id?'':`<button class="btn sm" data-a="role" data-v="${u.id}|${u.role}">${u.role==='admin'?'ปรับเป็นผู้สอบ':'ตั้งเป็นผู้ดูแล'}</button>`}</td></tr>`).join('')}</table></div>`};
 
 V.edit=()=>{const s=edSet,catOpts=[...new Set([...CATS,s.cat])];
-return `<div class="row"><h2>แก้ไขชุดข้อสอบ</h2><button class="btn" data-a="go" data-v="admin">← กลับ</button></div><div class="card"><div class="two"><div><label class="f">ชื่อชุดข้อสอบ</label><input class="inp" value="${esc(s.title)}" onchange="A.setField('title',this.value)"></div><div><label class="f">ประเภท</label><select class="inp" onchange="A.setField('cat',this.value)">${catOpts.map(c=>`<option value="${esc(c)}" ${s.cat===c?'selected':''}>${esc(c)}</option>`).join('')}</select></div><div><label class="f">เวลา (นาที)</label><input class="inp" type="number" min="0" value="${s.time}" onchange="A.setField('time',+this.value||0)"></div></div><label class="f">คำอธิบายสั้น ๆ</label><input class="inp" value="${esc(s.desc||'')}" onchange="A.setField('desc',this.value)"><label class="f"><input type="checkbox" ${s.is_public?'checked':''} onchange="A.setField('is_public',this.checked)"> เผยแพร่แบบสาธารณะ (ทุกคนเห็นในหน้าแรก)</label></div>
-<div class="row" style="margin-top:20px"><h3>ข้อสอบ (${s.questions.length} ข้อ)</h3><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" data-a="imp">📥 นำเข้าจากไฟล์</button><button class="btn pri" data-a="qed" data-v="">+ เพิ่มข้อสอบ</button></div></div><div class="card"><table>${s.questions.map((q,i)=>`<tr><td>${i+1}</td><td>${q.q_image?'🖼 ':''}${esc(q.q)}<div class="mut sm">${q.type==='mc'?'ปรนัย':'อัตนัย'} · เฉลย: ${esc(q.type==='mc'?(q.choices[q.answer]?.text||''):q.answer.join(' / '))}</div></td><td style="white-space:nowrap"><button class="btn sm" data-a="qed" data-v="${q.id}">แก้ไข</button> <button class="btn sm del" data-a="qdel" data-v="${q.id}">ลบ</button></td></tr>`).join('')||'<tr><td class="mut">ยังไม่มีข้อสอบในชุดนี้</td></tr>'}</table></div>`};
+SDIRTY=false;
+return `<div class="row"><h2>แก้ไขชุดข้อสอบ</h2><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" data-a="go" data-v="admin">← กลับ</button><button class="btn ssaveBtn" data-a="ssave">💾 บันทึกแล้ว</button></div></div><div class="fb" id="dirtyBar" style="display:none;background:var(--goldb);color:var(--gold);margin-bottom:12px">มีการแก้ไขที่ยังไม่ได้บันทึก — กด "บันทึกการเปลี่ยนแปลง" เพื่อจัดเก็บ</div><div class="card"><div class="two"><div><label class="f">ชื่อชุดข้อสอบ</label><input class="inp" value="${esc(s.title)}" oninput="A.setField('title',this.value)"></div><div><label class="f">ประเภท</label><select class="inp" onchange="A.setField('cat',this.value)">${catOpts.map(c=>`<option value="${esc(c)}" ${s.cat===c?'selected':''}>${esc(c)}</option>`).join('')}</select></div><div><label class="f">เวลา (นาที)</label><input class="inp" type="number" min="0" value="${s.time}" oninput="A.setField('time',+this.value||0)"></div></div><label class="f">คำอธิบายสั้น ๆ</label><input class="inp" value="${esc(s.desc||'')}" oninput="A.setField('desc',this.value)"><label class="f"><input type="checkbox" ${s.is_public?'checked':''} onchange="A.setField('is_public',this.checked)"> เผยแพร่แบบสาธารณะ (ทุกคนเห็นในหน้าแรก)</label><div class="foot"><span class="sp"></span><button class="btn ssaveBtn" data-a="ssave">💾 บันทึกการเปลี่ยนแปลง</button></div></div>
+<div class="row" style="margin-top:20px"><h3>ข้อสอบ (${s.questions.length} ข้อ)</h3><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" data-a="imp">📥 นำเข้าจากไฟล์</button><button class="btn pri" data-a="qed" data-v="">+ เพิ่มข้อสอบ</button></div></div><div class="card"><table>${s.questions.map((q,i)=>`<tr><td>${i+1}</td><td class="wrap">${q.q_image?'🖼 ':''}${esc(q.q)}<div class="mut sm">${q.type==='mc'?'ปรนัย':'อัตนัย'} · เฉลย: ${esc(q.type==='mc'?(q.choices[q.answer]?.text||''):q.answer.join(' / '))}</div></td><td style="white-space:nowrap"><button class="btn sm" data-a="qed" data-v="${q.id}">แก้ไข</button> <button class="btn sm del" data-a="qdel" data-v="${q.id}">ลบ</button></td></tr>`).join('')||'<tr><td class="mut">ยังไม่มีข้อสอบในชุดนี้</td></tr>'}</table></div>`};
 
 // ---------- Live room view ----------
 function timeLeftPct(){if(!LIVE||!LIVE.question)return 0;const el=Date.now()-LIVE.question.startedAt;return Math.max(0,100-el/(LIVE.question.seconds*1000)*100)}
@@ -214,7 +220,7 @@ function tick(){if(!X)return;const e=$('#tm');if(!e)return;if(X.end){const l=Mat
 
 // ---------- Actions ----------
 const A={
-go(v){if(X&&view==='exam')return;view=v;render();if(v==='hist')A.histAll(false);if(v==='admin')A.loadAdmin()},
+go(v){if(X&&view==='exam')return;if(view==='edit'&&SDIRTY&&!confirm('มีการแก้ไขที่ยังไม่ได้บันทึก ต้องการออกโดยไม่บันทึกใช่หรือไม่?'))return;SDIRTY=false;view=v;render();if(v==='hist')A.histAll(false);if(v==='admin')A.loadAdmin()},
 cat(v){cat=v;render()},cm:closeM,cb(){closeM();CB&&CB()},
 authm(){modal(`<h3>เข้าสู่ระบบ / สมัครสมาชิก</h3><div class="two" style="grid-template-columns:1fr"><label class="f">อีเมล</label><input class="inp" id="aem" type="email"><label class="f">รหัสผ่าน</label><input class="inp" id="apw" type="password"><label class="f" id="anmL" style="display:none">ชื่อที่แสดง</label><input class="inp" id="anm" style="display:none" placeholder="ชื่อของคุณ"></div><div class="fb" id="aerr" style="display:none"></div><div class="foot"><span class="sp"></span><button class="btn" data-a="cm">ยกเลิก</button><button class="btn" data-a="authSubmit" data-v="register">สมัครสมาชิกใหม่</button><button class="btn pri" data-a="authSubmit" data-v="login">เข้าสู่ระบบ</button></div>`)},
 async authSubmit(mode){const email=$('#aem').value.trim(),pw=$('#apw').value,name=$('#anm').value.trim(),err=$('#aerr');
@@ -228,11 +234,12 @@ async loadAdmin(){if(!adm())return;try{adminUsers=await api('/api/admin/users')}
 role(v){const [id,role]=v.split('|');api('/api/admin/users/'+id+'/role',{method:'PUT',body:{role:role==='admin'?'user':'admin'}}).then(()=>A.loadAdmin())},
 async open(id){R=await api('/api/results/'+id);view='result';render()},
 
-async sadd(){try{const s=await api('/api/admin/sets',{body:{title:'ชุดข้อสอบใหม่',cat:'ทั่วไป',time:10,desc:''}});await loadSets();edSet=await api('/api/admin/sets/'+s.id);EID=s.id;view='edit';render()}catch(e){toast(e.message)}},
-async sed(id){edSet=await api('/api/admin/sets/'+id);EID=id;view='edit';render()},
+async sadd(){try{const s=await api('/api/admin/sets',{body:{title:'ชุดข้อสอบใหม่',cat:'ทั่วไป',time:10,desc:''}});await loadSets();edSet=await api('/api/admin/sets/'+s.id);EID=s.id;SDIRTY=false;view='edit';render()}catch(e){toast(e.message)}},
+async sed(id){edSet=await api('/api/admin/sets/'+id);EID=id;SDIRTY=false;view='edit';render()},
 sdel(id){ask('ลบชุดข้อสอบนี้?',async()=>{await api('/api/admin/sets/'+id,{method:'DELETE'});await loadSets();render()},'ลบ')},
-setField(k,v){edSet[k]=v;api('/api/admin/sets/'+EID,{method:'PUT',body:{[k]:v}}).then(loadSets)},
-qdel(id){ask('ลบข้อสอบข้อนี้?',async()=>{await api('/api/admin/questions/'+id,{method:'DELETE'});edSet=await api('/api/admin/sets/'+EID);await loadSets();render()},'ลบ')},
+setField(k,v){edSet[k]=v;markDirty()},
+async ssave(){try{await api('/api/admin/sets/'+EID,{method:'PUT',body:{title:edSet.title,cat:edSet.cat,time:edSet.time,desc:edSet.desc,is_public:edSet.is_public}});await loadSets();SDIRTY=false;render();toast('บันทึกการเปลี่ยนแปลงแล้ว')}catch(e){toast(e.message)}},
+qdel(id){ask('ลบข้อสอบข้อนี้?',async()=>{if(SDIRTY)await A.ssave();await api('/api/admin/questions/'+id,{method:'DELETE'});edSet=await api('/api/admin/sets/'+EID);await loadSets();render()},'ลบ')},
 
 qed(id){QID=id||null;const src=id?edSet.questions.find(x=>x.id===id):null;
  edQ=src?JSON.parse(JSON.stringify(src)):{type:'mc',q:'',q_image:null,choices:[{text:'',image:null},{text:'',image:null}],answer:0,saAnswer:'',explanation:''};
@@ -253,7 +260,7 @@ async qsave(){const q=edQ,body={type:q.type,q:(q.q||'').trim(),q_image:q.q_image
  if(!body.q)return toast('กรุณากรอกโจทย์');
  if(q.type==='mc'){body.choices=q.choices.map(c=>({text:(c.text||'').trim(),image:c.image||null}));if(body.choices.some(c=>!c.text&&!c.image))return toast('ทุกตัวเลือกต้องมีข้อความหรือรูปภาพ');body.answer=q.answer}
  else{const a=(q.saAnswer||'').split('\n').map(x=>x.trim()).filter(Boolean);if(!a.length)return toast('ใส่คำตอบที่ถูกอย่างน้อย 1 คำตอบ');body.answer=a}
- try{if(QID)await api('/api/admin/questions/'+QID,{method:'PUT',body});else await api('/api/admin/sets/'+EID+'/questions',{body});
+ try{if(SDIRTY)await A.ssave();if(QID)await api('/api/admin/questions/'+QID,{method:'PUT',body});else await api('/api/admin/sets/'+EID+'/questions',{body});
    edSet=await api('/api/admin/sets/'+EID);await loadSets();closeM();render()}catch(e){toast(e.message)}},
 
 // ---- Import questions from file ----
@@ -266,7 +273,7 @@ async impRun(file){if(!file)return;const set=h=>{const e=$('#ist');if(e)e.innerH
  catch(e){set(`<div class="fb bad">${esc(e.message)}</div>`)}},
 impListHtml(source){return `<div class="fb ok">พบ ${IMP.length} ข้อ (แยกโดย${esc(source)}) ตรวจสอบก่อนเพิ่มเข้าชุดข้อสอบ</div><div style="max-height:44vh;overflow:auto;margin-top:10px">${IMP.map((x,i)=>`<label class="opt" style="align-items:flex-start"><input type="checkbox" ${x.on?'checked':''} onchange="IMP[${i}].on=this.checked"><span><span class="tag">${x.t==='mc'?'ปรนัย':'อัตนัย'}</span> ${esc(x.q)}<div class="mut sm">${x.t==='mc'?x.ch.map((c,k)=>(k===x.a?'✅ ':'')+L[k]+'. '+esc(c)).join(' · '):'เฉลย: '+esc(x.a.join(' / '))}</div></span></label>`).join('')}</div><div class="foot"><span class="sp"></span><button class="btn" data-a="cm">ยกเลิก</button><button class="btn pri" data-a="impAdd">เพิ่มเข้าชุดข้อสอบ</button></div>`},
 async impAdd(){const sel=IMP.filter(x=>x.on).map(({on,...x})=>x);if(!sel.length)return toast('เลือกอย่างน้อย 1 ข้อ');
- try{const r=await api('/api/admin/sets/'+EID+'/questions/bulk',{body:{questions:sel}});
+ try{if(SDIRTY)await A.ssave();const r=await api('/api/admin/sets/'+EID+'/questions/bulk',{body:{questions:sel}});
    edSet=await api('/api/admin/sets/'+EID);await loadSets();closeM();render();toast('เพิ่ม '+r.added+' ข้อแล้ว')}catch(e){toast(e.message)}},
 
 setup(id){const s=sets.find(x=>x.id===id),nm=s.mcCount,ns=s.saCount;
@@ -303,6 +310,7 @@ liveNext(){socket.emit('host:next',{pin:LIVE.pin},res=>{res&&res.error&&toast(re
 liveAnswer(v){if(!LIVE||LIVE.myAnswered)return;LIVE.myAnswered=true;render();socket.emit('player:answer',{pin:LIVE.pin,answer:+v},res=>{if(res&&res.error){toast(res.error);return}LIVE.myLastCorrect=res.correct;LIVE.myLastPoints=res.points})},
 };
 document.addEventListener('click',e=>{const b=e.target.closest('[data-a]');if(b&&A[b.dataset.a])A[b.dataset.a](b.dataset.v)});
+window.addEventListener('beforeunload',e=>{if(SDIRTY){e.preventDefault();e.returnValue=''}});
 boot();
 </script>
 </body>
