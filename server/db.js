@@ -13,22 +13,35 @@ const client = createClient({ url, authToken });
 
 // เลียนแบบ API เดิมของ better-sqlite3: db.prepare(sql).get(params) / .all(params) / .run(params)
 // รองรับทั้ง named params แบบ @name (ของเดิมในโค้ดใช้แบบนี้อยู่แล้ว) และ positional (?)
-function normalizeArgs(args) {
-  if (args.length === 1 && args[0] && typeof args[0] === 'object' && !Array.isArray(args[0])) return args[0];
-  return args;
+// แปลง named params (@name) เป็น positional (?) โดยใช้เฉพาะ key ที่ SQL อ้างถึงจริง
+// เหตุผล: เซิร์ฟเวอร์ Turso (remote) จะ error "Input error" ถ้าส่ง named args เกินหรือไม่ตรงกับ
+// placeholder ใน SQL (เช่น ส่ง created_by/created_at เกินมา) ขณะที่ SQLite local ยอมให้ผ่าน
+function prepareCall(sql, args) {
+  if (args.length === 1 && args[0] && typeof args[0] === 'object' && !Array.isArray(args[0])) {
+    const obj = args[0];
+    const values = [];
+    const text = sql.replace(/@([A-Za-z_][A-Za-z0-9_]*)/g, (_, name) => {
+      if (!(name in obj)) throw new Error('Missing SQL parameter: ' + name);
+      const v = obj[name];
+      values.push(v === undefined ? null : v);
+      return '?';
+    });
+    return { sql: text, args: values };
+  }
+  return { sql, args: args.map(v => (v === undefined ? null : v)) };
 }
 function prepare(sql) {
   return {
     async get(...args) {
-      const rs = await client.execute({ sql, args: normalizeArgs(args) });
+      const rs = await client.execute(prepareCall(sql, args));
       return rs.rows[0] || undefined;
     },
     async all(...args) {
-      const rs = await client.execute({ sql, args: normalizeArgs(args) });
+      const rs = await client.execute(prepareCall(sql, args));
       return rs.rows.map(r => ({ ...r }));
     },
     async run(...args) {
-      const rs = await client.execute({ sql, args: normalizeArgs(args) });
+      const rs = await client.execute(prepareCall(sql, args));
       return { changes: rs.rowsAffected, lastInsertRowid: rs.lastInsertRowid };
     },
   };
