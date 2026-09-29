@@ -116,7 +116,12 @@ app.put('/api/admin/sets/:id', requireAuth, requireAdmin, ah(async (req, res) =>
   const b = req.body || {};
   const merged = { ...s, title: b.title ?? s.title, cat: b.cat ?? s.cat, time: b.time != null ? +b.time : s.time, desc: b.desc ?? s.desc, is_public: b.is_public != null ? (b.is_public ? 1 : 0) : s.is_public };
   await db.prepare('UPDATE sets SET title=@title,cat=@cat,time=@time,desc=@desc,is_public=@is_public WHERE id=@id').run(merged);
-  res.json(await withCounts(merged));
+  // คืนค่าพร้อม questions เต็ม (เหมือน GET /api/admin/sets/:id) เพราะฝั่งหน้าเว็บเอา response
+  // นี้ไปแทนที่ edSet ทั้งก้อนหลังบันทึก ถ้าไม่มี questions ติดมาด้วย ปุ่ม "แก้ไข" ข้อสอบแต่ละข้อ
+  // ที่กดหลังจากนี้จะพังเงียบๆ เพราะ edSet.questions เป็น undefined
+  const rows = await db.prepare('SELECT * FROM questions WHERE set_id=? ORDER BY ord ASC').all(merged.id);
+  const qs = rows.map(q => ({ ...q, choices: q.choices ? JSON.parse(q.choices) : null, answer: JSON.parse(q.answer) }));
+  res.json({ ...(await withCounts(merged)), questions: qs });
 }));
 app.delete('/api/admin/sets/:id', requireAuth, requireAdmin, ah(async (req, res) => {
   await db.prepare('DELETE FROM questions WHERE set_id=?').run(req.params.id);
