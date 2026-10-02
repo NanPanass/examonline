@@ -244,7 +244,7 @@ qdel(id){ask('ลบข้อสอบข้อนี้?',async()=>{if(SDIRTY)a
 qed(id){QID=id||null;const src=id?edSet.questions.find(x=>String(x.id)===String(id)):null;
  edQ=src?JSON.parse(JSON.stringify(src)):{type:'mc',q:'',q_image:null,choices:[{text:'',image:null},{text:'',image:null}],answer:0,saAnswer:'',explanation:''};
  if(edQ.type==='sa')edQ.saAnswer=(edQ.answer||[]).join('\n');
- modal(qEditorHtml())},
+ modal(A.qEditorHtml())},
 qEditorHtml(){const q=edQ;
  const mcBlock=()=>`<label class="f">ตัวเลือกคำตอบ (แต่ละข้อใส่ข้อความและ/หรือรูปภาพได้)</label>${(q.choices||[]).map((c,i)=>`<div class="crow"><b style="padding-top:8px">${L[i]}</b><div style="flex:1"><input class="inp" placeholder="ข้อความตัวเลือก (เว้นว่างได้ถ้าใช้รูป)" value="${esc(c.text||'')}" oninput="edQ.choices[${i}].text=this.value">${c.image?`<img class="thumb-sm" src="${esc(c.image)}"> <button class="btn sm del" type="button" onclick="edQ.choices[${i}].image=null;A.refreshQ()">ลบรูป</button>`:`<input type="file" accept="image/*" onchange="A.qImg(this.files[0],'c',${i})">`}</div><label style="display:flex;align-items:center;gap:4px;white-space:nowrap"><input type="radio" name="qans" ${q.answer===i?'checked':''} onchange="edQ.answer=${i}"> ถูกต้อง</label>${q.choices.length>2?`<button class="btn sm del" type="button" onclick="edQ.choices.splice(${i},1);if(edQ.answer>=edQ.choices.length)edQ.answer=0;A.refreshQ()">✕</button>`:''}</div>`).join('')}<button class="btn sm" type="button" onclick="edQ.choices.push({text:'',image:null});A.refreshQ()">+ เพิ่มตัวเลือก</button>`;
  const saBlock=()=>`<label class="f">คำตอบที่ยอมรับ (1 บรรทัดต่อ 1 คำตอบ ไม่สนตัวพิมพ์เล็ก/ใหญ่)</label><textarea class="inp" rows="3" oninput="edQ.saAnswer=this.value">${esc(q.saAnswer||'')}</textarea>`;
