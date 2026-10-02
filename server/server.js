@@ -39,19 +39,16 @@ const ah = fn => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(e
   if (!res.headersSent) res.status(500).json({ error: 'เกิดข้อผิดพลาดที่เซิร์ฟเวอร์ กรุณาลองใหม่' });
 });
 
-// อัปโหลดรูปภาพ: บน Vercel /tmp เป็นที่เดียวที่เขียนไฟล์ได้ และไม่ถาวร (หายเมื่อ instance ถูกเลิกใช้)
-// ใช้ได้สำหรับดีพลอยที่มีดิสก์ถาวร (Render ฯลฯ); บน Vercel ควรย้ายไป object storage ในอนาคต
-const uploadDir = process.env.VERCEL ? '/tmp/uploads' : path.join(__dirname, 'uploads');
-if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
-app.use('/uploads', express.static(uploadDir));
 app.use(express.static(path.join(__dirname, '..', 'public')));
 
+// อัปโหลดรูปภาพ: เก็บเป็น base64 data URI แล้วฝังลงคอลัมน์ q_image/choices ในฐานข้อมูลโดยตรง
+// (ไม่เขียนลงดิสก์) เพราะบน Vercel ไฟล์ระบบเป็น read-only ยกเว้น /tmp ซึ่งไม่ถาวร (หายเมื่อ
+// instance ถูกเลิกใช้/deploy ใหม่) วิธีนี้ทำให้รูปอยู่ถาวรไปกับข้อมูลข้อสอบ ใช้งานได้เหมือนกันทุก
+// แพลตฟอร์มที่ deploy โดยไม่ต้องพึ่ง object storage ภายนอก แลกกับขนาดแถวข้อมูลที่ใหญ่ขึ้น
+// จึงจำกัดขนาดไฟล์ไว้ที่ 1.5MB/รูป (เทียบเท่า ~2MB หลังเข้ารหัส base64)
 const upload = multer({
-  storage: multer.diskStorage({
-    destination: (_req, _f, cb) => cb(null, uploadDir),
-    filename: (_req, f, cb) => cb(null, uuid() + path.extname(f.originalname || '').slice(0, 10)),
-  }),
-  limits: { fileSize: 5 * 1024 * 1024 },
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 1.5 * 1024 * 1024 },
   fileFilter: (_req, f, cb) => cb(null, /^image\/(png|jpe?g|webp|gif)$/.test(f.mimetype)),
 });
 
@@ -165,9 +162,13 @@ app.delete('/api/admin/questions/:id', requireAuth, requireAdmin, ah(async (req,
   res.json({ ok: true });
 }));
 
-app.post('/api/upload', requireAuth, requireAdmin, upload.single('image'), (req, res) => {
-  if (!req.file) return res.status(400).json({ error: 'ไม่พบไฟล์รูปภาพ หรือไฟล์ไม่ใช่ png/jpg/webp/gif' });
-  res.json({ url: '/uploads/' + req.file.filename });
+app.post('/api/upload', requireAuth, requireAdmin, (req, res) => {
+  upload.single('image')(req, res, (err) => {
+    if (err) return res.status(400).json({ error: err.code === 'LIMIT_FILE_SIZE' ? 'ไฟล์รูปใหญ่เกินไป (จำกัด 1.5MB ต่อรูป)' : 'อัปโหลดไฟล์ไม่สำเร็จ' });
+    if (!req.file) return res.status(400).json({ error: 'ไม่พบไฟล์รูปภาพ หรือไฟล์ไม่ใช่ png/jpg/webp/gif' });
+    const dataUri = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
+    res.json({ url: dataUri });
+  });
 });
 
 // ---------- Import questions from a file (Word / Excel / PDF / image / md / txt) ----------
