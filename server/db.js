@@ -75,7 +75,8 @@ CREATE TABLE IF NOT EXISTS questions (
   q_image TEXT,
   choices TEXT,
   answer TEXT NOT NULL,
-  explanation TEXT DEFAULT ''
+  explanation TEXT DEFAULT '',
+  section_note TEXT
 );
 CREATE TABLE IF NOT EXISTS results (
   id TEXT PRIMARY KEY,
@@ -136,8 +137,17 @@ async function seedIfEmpty() {
 }
 
 // ต้องรอ schema+seed เสร็จก่อนเซิร์ฟเวอร์เริ่มรับ request จริง — server.js จะ await ตัวนี้ก่อน listen()
+// ฐานข้อมูลที่ deploy ไปแล้วก่อนหน้านี้มีตาราง questions อยู่แล้วโดยไม่มีคอลัมน์ section_note
+// CREATE TABLE IF NOT EXISTS ด้านบนจะไม่เพิ่มคอลัมน์ใหม่ให้ตารางที่มีอยู่แล้ว ต้อง ALTER TABLE เพิ่มเอง
+// (ครอบ try/catch เพราะถ้าเพิ่มไปแล้วครั้งก่อน รันซ้ำจะ error "duplicate column" ซึ่งไม่ใช่ปัญหา)
+async function migrate() {
+  try { await client.execute('ALTER TABLE questions ADD COLUMN section_note TEXT'); }
+  catch (e) { if (!/duplicate column|already exists/i.test(e.message || '')) throw e; }
+}
+
 const ready = (async () => {
   await client.executeMultiple(SCHEMA);
+  await migrate();
   await seedIfEmpty();
 })();
 

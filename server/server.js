@@ -143,8 +143,8 @@ app.post('/api/admin/sets/:id/questions', requireAuth, requireAdmin, ah(async (r
   if (!s) return res.status(404).json({ error: 'ไม่พบชุดข้อสอบ' });
   const ord = (await db.prepare('SELECT COALESCE(MAX(ord),-1)+1 n FROM questions WHERE set_id=?').get(s.id)).n;
   const b = req.body;
-  const q = { id: uuid(), set_id: s.id, ord, type: b.type, q: b.q, q_image: b.q_image || null, choices: b.type === 'mc' ? JSON.stringify(b.choices) : null, answer: JSON.stringify(b.answer), explanation: b.explanation || '' };
-  await db.prepare('INSERT INTO questions (id,set_id,ord,type,q,q_image,choices,answer,explanation) VALUES (@id,@set_id,@ord,@type,@q,@q_image,@choices,@answer,@explanation)').run(q);
+  const q = { id: uuid(), set_id: s.id, ord, type: b.type, q: b.q, q_image: b.q_image || null, choices: b.type === 'mc' ? JSON.stringify(b.choices) : null, answer: JSON.stringify(b.answer), explanation: b.explanation || '', section_note: (b.section_note || '').trim() || null };
+  await db.prepare('INSERT INTO questions (id,set_id,ord,type,q,q_image,choices,answer,explanation,section_note) VALUES (@id,@set_id,@ord,@type,@q,@q_image,@choices,@answer,@explanation,@section_note)').run(q);
   res.json({ ...q, choices: b.type === 'mc' ? b.choices : null, answer: b.answer });
 }));
 app.put('/api/admin/questions/:id', requireAuth, requireAdmin, ah(async (req, res) => {
@@ -153,8 +153,8 @@ app.put('/api/admin/questions/:id', requireAuth, requireAdmin, ah(async (req, re
   const existing = await db.prepare('SELECT * FROM questions WHERE id=?').get(req.params.id);
   if (!existing) return res.status(404).json({ error: 'ไม่พบข้อสอบ' });
   const b = req.body;
-  await db.prepare('UPDATE questions SET type=@type,q=@q,q_image=@q_image,choices=@choices,answer=@answer,explanation=@explanation WHERE id=@id')
-    .run({ id: existing.id, type: b.type, q: b.q, q_image: b.q_image || null, choices: b.type === 'mc' ? JSON.stringify(b.choices) : null, answer: JSON.stringify(b.answer), explanation: b.explanation || '' });
+  await db.prepare('UPDATE questions SET type=@type,q=@q,q_image=@q_image,choices=@choices,answer=@answer,explanation=@explanation,section_note=@section_note WHERE id=@id')
+    .run({ id: existing.id, type: b.type, q: b.q, q_image: b.q_image || null, choices: b.type === 'mc' ? JSON.stringify(b.choices) : null, answer: JSON.stringify(b.answer), explanation: b.explanation || '', section_note: (b.section_note || '').trim() || null });
   res.json({ ok: true });
 }));
 app.delete('/api/admin/questions/:id', requireAuth, requireAdmin, ah(async (req, res) => {
@@ -181,13 +181,22 @@ const IMPORT_PROMPT = `คุณคือผู้ช่วยแยกข้อ
 แต่ละข้อในอาเรย์เป็นหนึ่งในสองรูปแบบ:
 ปรนัย: {"t":"mc","q":"โจทย์","ch":["ตัวเลือกที่ 1","ตัวเลือกที่ 2", ...],"a":เลขลำดับตัวเลือกที่ถูกเริ่มที่ 0,"ex":"คำอธิบายเฉลยสั้นๆ หรือค่าว่าง"}
 อัตนัย (มีคำตอบตายตัว): {"t":"sa","q":"โจทย์","a":["คำตอบที่ยอมรับ 1","คำตอบที่ยอมรับ 2 ถ้ามี"],"ex":""}
+ทั้งสองรูปแบบรองรับฟิลด์เสริม "section_note" (ไม่บังคับ ใส่เฉพาะข้อที่เข้าเงื่อนไขด้านล่าง)
 กติกา:
 - อย่าใส่ตัวอักษรนำหน้าตัวเลือก (ก. ข. A. B. 1. 2.) ปนอยู่ในข้อความตัวเลือก ให้ตัดออก
 - ถ้าเอกสารระบุเฉลยไว้ (ไม่ว่าจะอยู่ติดกับโจทย์หรือแยกเป็นหน้าเฉลยท้ายเล่ม) ให้จับคู่แล้วใช้เฉลยนั้น
 - ถ้าไม่มีเฉลยระบุไว้เลย ให้เลือกคำตอบที่ถูกต้องที่สุดตามความรู้ทั่วไป
 - คงภาษาของเอกสารต้นฉบับ ไม่แปล
 - ข้ามส่วนที่ไม่ใช่ข้อสอบ เช่น คำนำ หน้าปก เลขหน้า
-- ถ้าไม่พบข้อสอบเลย ให้ตอบเป็น [] (อาเรย์ว่าง)`;
+- ถ้าไม่พบข้อสอบเลย ให้ตอบเป็น [] (อาเรย์ว่าง)
+
+กติกาเรื่องหัวข้อ/คำอธิบายช่วงตอน (section_note):
+- เอกสารมักมีบรรทัดหัวข้อก่อนกลุ่มคำถาม เช่น "ตอนที่ 1: เลือกความหมายที่ถูกต้อง (ข้อ 1-10)" หรือ "หมวดที่ 1 กฎหมาย ระเบียบที่เกี่ยวข้องกับการปฏิบัติราชการทั่วไป (30 ข้อ)"
+- ถ้าเจอบรรทัดแบบนี้ ให้คัดลอกข้อความทั้งบรรทัด (รวมช่วงเลขข้อ/จำนวนข้อถ้ามี) ใส่ไว้ในฟิลด์ "section_note" ของข้อคำถาม "ข้อแรก" ที่อยู่ในช่วงนั้นเท่านั้น (เช่น ถ้าหัวข้อระบุว่าเริ่มที่ข้อ 25 ให้ใส่ section_note ไว้ที่ข้อสอบข้อที่ตรงกับข้อ 25 ของเอกสารต้นฉบับ ไม่ใช่ข้อก่อนหน้านั้น)
+- ถ้าหัวข้อไม่ได้ระบุช่วงเลขข้อไว้ ให้ใส่ section_note ไว้ที่ข้อคำถามข้อแรกที่ปรากฏถัดจากบรรทัดหัวข้อนั้นทันที
+- ถ้าเจอทั้ง "หมวดที่" และ "ตอนที่" อยู่ติดกันสำหรับช่วงเดียวกัน (เช่นหัวข้อใหญ่ตามด้วยหัวข้อย่อย) ให้รวมข้อความทั้งสองบรรทัดเป็น section_note เดียวกัน (ต่อกันด้วยการขึ้นบรรทัดใหม่ \\n) ไม่ต้องแยกใส่คนละข้อ
+- ข้อคำถามที่ไม่ได้อยู่ต้นช่วงไม่ต้องมีฟิลด์ section_note เลย (อย่าใส่เป็นค่าว่าง ให้ไม่ต้องมี key นี้)
+- ถ้าเอกสารไม่มีหัวข้อแบบนี้เลย ไม่ต้องใส่ section_note ในข้อใดเลย`;
 
 async function callClaudeExtract({ text, fileBuffer, mediaType }) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
@@ -212,30 +221,54 @@ async function callClaudeExtract({ text, fileBuffer, mediaType }) {
 }
 
 // ตัวแยกสำรองแบบไม่ใช้ AI (ใช้เมื่อไม่ได้ตั้งค่า ANTHROPIC_API_KEY) รองรับเฉพาะไฟล์ข้อความ
+// อ่านทีละบรรทัดตามลำดับในเอกสาร เพื่อให้จับหัวข้อ "ตอนที่/หมวดที่" แล้วผูกเข้ากับข้อสอบข้อถัดไปได้
+// (ความแม่นยำต่ำกว่าโหมด AI — ไม่รับประกันว่าจะจับช่วงเลขข้อที่ระบุในหัวข้อได้ตรงเป๊ะทุกกรณี)
 function heuristicExtract(text) {
   const T = 'กขคงจฉชซฌ';
-  let blocks = ('\n' + text).split(/\n(?=\s*(?:ข้อ\s*)?\d{1,3}\s*[.)]\s)/);
-  if (blocks.length < 3) blocks = text.split('\n').filter(l => l.includes('='));
+  const lines = text.split('\n').map(l => l.trim());
   const out = [];
-  for (const b of blocks) {
-    const qLines = [], choices = []; let ans = '';
-    for (const l of b.split('\n').map(x => x.trim()).filter(Boolean)) {
-      let m;
-      if ((m = l.match(/^(?:เฉลย|คำตอบ|ตอบ|answer|ans)\s*[:：\-]?\s*(.+)$/i))) { ans = m[1].trim(); continue; }
-      if ((m = l.match(/^\(?([A-Ha-hก-ฌ])[.)]\s*(.+)$/))) { choices.push(m[2]); continue; }
-      qLines.push(l);
+  let cur = null, pendingNote = [];
+  const flush = () => {
+    if (!cur) return;
+    const q = cur.qLines.join(' ').trim();
+    if (q) {
+      const eq = q.match(/^(.*?)\s*[=＝]\s*(.+)$/);
+      let item = null;
+      if (cur.choices.length > 1) {
+        const k = cur.ans.replace(/[().\s]/g, '').charAt(0);
+        let idx = T.indexOf(k); if (idx < 0) idx = 'abcdefgh'.indexOf(k.toLowerCase());
+        item = { t: 'mc', q, ch: cur.choices, a: idx >= 0 && idx < cur.choices.length ? idx : 0, ex: '' };
+      } else if (cur.ans) item = { t: 'sa', q, a: cur.ans.split(/\s*[\/|]\s*/).filter(Boolean), ex: '' };
+      else if (eq) item = { t: 'sa', q: eq[1].trim(), a: eq[2].split(/\s*[\/|]\s*/).filter(Boolean), ex: '' };
+      if (item) {
+        if (cur.note) item.section_note = cur.note;
+        out.push(item);
+      }
     }
-    const q = qLines.join(' ').replace(/^(?:ข้อ\s*)?\d{1,3}\s*[.)]\s*/, '').trim();
-    if (!q) continue;
-    const eq = q.match(/^(.*?)\s*[=＝]\s*(.+)$/);
-    if (choices.length > 1) {
-      const k = ans.replace(/[().\s]/g, '').charAt(0);
-      let idx = T.indexOf(k); if (idx < 0) idx = 'abcdefgh'.indexOf(k.toLowerCase());
-      out.push({ t: 'mc', q, ch: choices, a: idx >= 0 && idx < choices.length ? idx : 0, ex: '' });
-    } else if (ans) out.push({ t: 'sa', q, a: ans.split(/\s*[\/|]\s*/).filter(Boolean), ex: '' });
-    else if (eq) out.push({ t: 'sa', q: eq[1].trim(), a: eq[2].split(/\s*[\/|]\s*/).filter(Boolean), ex: '' });
+    cur = null;
+  };
+  for (const l of lines) {
+    if (!l) continue;
+    let m;
+    if ((m = l.match(/^((?:หมวดที่|ตอนที่)[^\n]*)$/))) { pendingNote.push(m[1].trim()); continue; }
+    if ((m = l.match(/^(?:ข้อ\s*)?(\d{1,3})\s*[.)]\s*(.*)$/))) {
+      flush();
+      cur = { qLines: [m[2]], choices: [], ans: '' };
+      if (pendingNote.length) { cur.note = pendingNote.join('\n'); pendingNote = []; }
+      continue;
+    }
+    if (!cur) continue;
+    if ((m = l.match(/^(?:เฉลย|คำตอบ|ตอบ|answer|ans)\s*[:：\-]?\s*(.+)$/i))) { cur.ans = m[1].trim(); continue; }
+    if ((m = l.match(/^\(?([A-Ha-hก-ฌ])[.)]\s*(.+)$/))) { cur.choices.push(m[2]); continue; }
+    cur.qLines.push(l);
   }
-  return out;
+  flush();
+  if (out.length >= 3) return out;
+  // เอกสารบางแบบไม่มีเลขข้อนำหน้าเลย (เช่น "5+3 = 8" ทีละบรรทัด) ลองโหมดสำรองนี้แทน
+  return text.split('\n').map(l => l.trim()).filter(l => l.includes('=')).map(l => {
+    const m = l.match(/^(.*?)\s*[=＝]\s*(.+)$/); if (!m) return null;
+    return { t: 'sa', q: m[1].trim(), a: m[2].split(/\s*[\/|]\s*/).filter(Boolean), ex: '' };
+  }).filter(Boolean);
 }
 
 const IMAGE_MEDIA = { '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.gif': 'image/gif', '.webp': 'image/webp' };
@@ -285,11 +318,11 @@ app.post('/api/admin/sets/:id/questions/bulk', requireAuth, requireAdmin, ah(asy
       q: String(it.q || '').trim(), q_image: null,
       choices: type === 'mc' ? JSON.stringify((it.ch || []).map(c => ({ text: c, image: null }))) : null,
       answer: JSON.stringify(type === 'mc' ? it.a : (it.a || [])),
-      explanation: it.ex || '' };
+      explanation: it.ex || '', section_note: (it.section_note || '').trim() || null };
     if (!q.q) continue;
     if (type === 'mc' && (!it.ch || it.ch.length < 2)) continue;
     if (type === 'sa' && (!it.a || !it.a.length)) continue;
-    await db.prepare('INSERT INTO questions (id,set_id,ord,type,q,q_image,choices,answer,explanation) VALUES (@id,@set_id,@ord,@type,@q,@q_image,@choices,@answer,@explanation)').run(q);
+    await db.prepare('INSERT INTO questions (id,set_id,ord,type,q,q_image,choices,answer,explanation,section_note) VALUES (@id,@set_id,@ord,@type,@q,@q_image,@choices,@answer,@explanation,@section_note)').run(q);
     added++;
   }
   res.json({ ok: true, added });
@@ -306,7 +339,7 @@ app.put('/api/admin/users/:id/role', requireAuth, requireAdmin, ah(async (req, r
 
 // ---------- Exam taking: answers never leave the server until grading ----------
 const sessions = new Map(); // sessionId -> { qs:[fullQuestion...], setId, setTitle, mode, startedAt }
-const sanitizeQ = q => ({ id: q.id, type: q.type, q: q.q, q_image: q.q_image, choices: q.choices ? JSON.parse(q.choices).map(c => ({ text: c.text, image: c.image })) : null });
+const sanitizeQ = q => ({ id: q.id, type: q.type, q: q.q, q_image: q.q_image, section_note: q.section_note || null, choices: q.choices ? JSON.parse(q.choices).map(c => ({ text: c.text, image: c.image })) : null });
 
 app.post('/api/exam/start', ah(async (req, res) => {
   const { setId, mode, format, shuffle } = req.body || {};
