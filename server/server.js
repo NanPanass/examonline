@@ -184,8 +184,10 @@ const IMPORT_PROMPT = `คุณคือผู้ช่วยแยกข้อ
 ทั้งสองรูปแบบรองรับฟิลด์เสริม "section_note" (ไม่บังคับ ใส่เฉพาะข้อที่เข้าเงื่อนไขด้านล่าง)
 กติกา:
 - อย่าใส่ตัวอักษรนำหน้าตัวเลือก (ก. ข. A. B. 1. 2.) ปนอยู่ในข้อความตัวเลือก ให้ตัดออก
-- ถ้าเอกสารระบุเฉลยไว้ (ไม่ว่าจะอยู่ติดกับโจทย์หรือแยกเป็นหน้าเฉลยท้ายเล่ม) ให้จับคู่แล้วใช้เฉลยนั้น
-- ถ้าไม่มีเฉลยระบุไว้เลย ให้เลือกคำตอบที่ถูกต้องที่สุดตามความรู้ทั่วไป
+- ถ้าเอกสารระบุเฉลยไว้ (ไม่ว่าจะอยู่ติดกับโจทย์หรือแยกเป็นหน้า "เฉลย"/"คำตอบ" ท้ายเล่ม) ให้จับคู่แล้วใช้เฉลยนั้นเสมอ ห้ามเดาเองถ้าเอกสารบอกไว้ชัดเจนแล้ว
+- หน้าเฉลยแยกท้ายเล่มมักอยู่ในรูปแบบ "เลขข้อ + ตัวอักษรเฉลย" เรียงต่อกันหลายข้อ เช่น "1. ข  2. ก  3. ค  4. ง" หรือ "1-B 2-A 3-C" หรือเป็นตาราง ให้จับคู่ "เลขข้อ" ในหน้าเฉลยกับ "เลขข้อ" ของโจทย์ให้ตรงกันทุกข้อ แล้วแปลงตัวอักษร (ก/ข/ค/ง หรือ A/B/C/D) เป็นตัวเลือกที่ตรงกันในข้อนั้น
+- ถ้าหน้าเฉลยเขียนเป็นคำตอบเต็มแทนตัวอักษร (เช่นข้ออัตนัย) ให้จับคู่เลขข้อแล้วใช้ข้อความคำตอบนั้นตรงๆ
+- ถ้าไม่มีเฉลยระบุไว้เลยทั้งเอกสาร ให้เลือกคำตอบที่ถูกต้องที่สุดตามความรู้ทั่วไป
 - คงภาษาของเอกสารต้นฉบับ ไม่แปล
 - ข้ามส่วนที่ไม่ใช่ข้อสอบ เช่น คำนำ หน้าปก เลขหน้า
 - ถ้าไม่พบข้อสอบเลย ให้ตอบเป็น [] (อาเรย์ว่าง)
@@ -223,9 +225,23 @@ async function callClaudeExtract({ text, fileBuffer, mediaType }) {
 // ตัวแยกสำรองแบบไม่ใช้ AI (ใช้เมื่อไม่ได้ตั้งค่า ANTHROPIC_API_KEY) รองรับเฉพาะไฟล์ข้อความ
 // อ่านทีละบรรทัดตามลำดับในเอกสาร เพื่อให้จับหัวข้อ "ตอนที่/หมวดที่" แล้วผูกเข้ากับข้อสอบข้อถัดไปได้
 // (ความแม่นยำต่ำกว่าโหมด AI — ไม่รับประกันว่าจะจับช่วงเลขข้อที่ระบุในหัวข้อได้ตรงเป๊ะทุกกรณี)
+function equalsFallback(text) {
+  // เอกสารบางแบบไม่มีเลขข้อนำหน้าเลย (เช่น "5+3 = 8" ทีละบรรทัด) ลองโหมดสำรองนี้แทน
+  return text.split('\n').map(l => l.trim()).filter(l => l.includes('=')).map(l => {
+    const m = l.match(/^(.*?)\s*[=＝]\s*(.+)$/); if (!m) return null;
+    return { t: 'sa', q: m[1].trim(), a: m[2].split(/\s*[\/|]\s*/).filter(Boolean), ex: '' };
+  }).filter(Boolean);
+}
+
 function heuristicExtract(text) {
   const T = 'กขคงจฉชซฌ';
-  const lines = text.split('\n').map(l => l.trim());
+  const allLines = text.split('\n').map(l => l.trim());
+  // ----- แยกหน้าเฉลยแยกท้ายเอกสารออกก่อน (บรรทัดที่เป็นหัวข้อ "เฉลย"/"คำตอบ" ล้วนๆ ไม่มีคำตอบติดอยู่ในบรรทัดเดียวกัน) -----
+  // ต้องตัดออกจากส่วนที่จะพาร์สเป็นโจทย์ก่อน ไม่งั้นเนื้อหาในหน้าเฉลย (เช่น "1. ข  2. ก") จะถูกเข้าใจผิดว่าเป็นข้อสอบข้อใหม่
+  const keyHeaderIdx = allLines.findIndex(l => /^(?:เฉลย|คำตอบ|answer\s*key)\s*[:：]?\s*$/i.test(l));
+  const lines = keyHeaderIdx >= 0 ? allLines.slice(0, keyHeaderIdx) : allLines;
+  const keyText = keyHeaderIdx >= 0 ? allLines.slice(keyHeaderIdx + 1).join('\n') : '';
+
   const out = [];
   let cur = null, pendingNote = [];
   const flush = () => {
@@ -235,11 +251,14 @@ function heuristicExtract(text) {
       const eq = q.match(/^(.*?)\s*[=＝]\s*(.+)$/);
       let item = null;
       if (cur.choices.length > 1) {
-        const k = cur.ans.replace(/[().\s]/g, '').charAt(0);
-        let idx = T.indexOf(k); if (idx < 0) idx = 'abcdefgh'.indexOf(k.toLowerCase());
-        item = { t: 'mc', q, ch: cur.choices, a: idx >= 0 && idx < cur.choices.length ? idx : 0, ex: '' };
-      } else if (cur.ans) item = { t: 'sa', q, a: cur.ans.split(/\s*[\/|]\s*/).filter(Boolean), ex: '' };
-      else if (eq) item = { t: 'sa', q: eq[1].trim(), a: eq[2].split(/\s*[\/|]\s*/).filter(Boolean), ex: '' };
+        // a:-1 แปลว่ายังไม่เจอเฉลยติดกับโจทย์ — รอดูว่ามีหน้าเฉลยแยกท้ายเอกสารไหมก่อนค่อย fallback เป็นตัวเลือกแรก
+        // (ระวัง: ''.indexOf('') คืนค่า 0 ไม่ใช่ -1 ต้องเช็ค cur.ans ว่ามีค่าจริงก่อนค่อยหา index)
+        let idx = -1;
+        if (cur.ans) { const k = cur.ans.replace(/[().\s]/g, '').charAt(0); idx = T.indexOf(k); if (idx < 0) idx = 'abcdefgh'.indexOf(k.toLowerCase()); }
+        item = { t: 'mc', q, ch: cur.choices, a: idx >= 0 && idx < cur.choices.length ? idx : -1, ex: '', num: cur.num };
+      } else if (cur.ans) item = { t: 'sa', q, a: cur.ans.split(/\s*[\/|]\s*/).filter(Boolean), ex: '', num: cur.num };
+      else if (eq) item = { t: 'sa', q: eq[1].trim(), a: eq[2].split(/\s*[\/|]\s*/).filter(Boolean), ex: '', num: cur.num };
+      else item = { t: 'sa', q, a: [], ex: '', num: cur.num }; // ยังไม่มีคำตอบ รอหน้าเฉลยแยกเช่นกัน
       if (item) {
         if (cur.note) item.section_note = cur.note;
         out.push(item);
@@ -253,7 +272,7 @@ function heuristicExtract(text) {
     if ((m = l.match(/^((?:หมวดที่|ตอนที่)[^\n]*)$/))) { pendingNote.push(m[1].trim()); continue; }
     if ((m = l.match(/^(?:ข้อ\s*)?(\d{1,3})\s*[.)]\s*(.*)$/))) {
       flush();
-      cur = { qLines: [m[2]], choices: [], ans: '' };
+      cur = { qLines: [m[2]], choices: [], ans: '', num: m[1] };
       if (pendingNote.length) { cur.note = pendingNote.join('\n'); pendingNote = []; }
       continue;
     }
@@ -263,12 +282,30 @@ function heuristicExtract(text) {
     cur.qLines.push(l);
   }
   flush();
-  if (out.length >= 3) return out;
-  // เอกสารบางแบบไม่มีเลขข้อนำหน้าเลย (เช่น "5+3 = 8" ทีละบรรทัด) ลองโหมดสำรองนี้แทน
-  return text.split('\n').map(l => l.trim()).filter(l => l.includes('=')).map(l => {
-    const m = l.match(/^(.*?)\s*[=＝]\s*(.+)$/); if (!m) return null;
-    return { t: 'sa', q: m[1].trim(), a: m[2].split(/\s*[\/|]\s*/).filter(Boolean), ex: '' };
-  }).filter(Boolean);
+
+  // ----- จับคู่ "เลขข้อ" ในหน้าเฉลยแยก กับ "ตัวอักษรเฉลย" (ก ข ค ง หรือ A B C D) หรือข้อความคำตอบเต็มสำหรับข้ออัตนัย -----
+  if (keyText) {
+    const letterMap = {}, textMap = {};
+    const letterRe = /(\d{1,3})\s*[.)\-:：]?\s*([A-Da-d]|[ก-ฌ])(?=\s|,|$|\d)/g;
+    let mm;
+    while ((mm = letterRe.exec(keyText))) { if (!(mm[1] in letterMap)) letterMap[mm[1]] = mm[2]; }
+    for (const l of keyText.split('\n')) {
+      const mt = l.trim().match(/^(\d{1,3})\s*[.)\-:：]\s*(.+)$/);
+      if (mt && !(mt[1] in textMap)) textMap[mt[1]] = mt[2].trim();
+    }
+    for (const item of out) {
+      if (item.t === 'mc' && item.a === -1 && item.num && letterMap[item.num]) {
+        const k = letterMap[item.num];
+        let idx = T.indexOf(k); if (idx < 0) idx = 'abcdefgh'.indexOf(k.toLowerCase());
+        if (idx >= 0 && idx < item.ch.length) item.a = idx;
+      }
+      if (item.t === 'sa' && !item.a.length && item.num && textMap[item.num]) item.a = [textMap[item.num]];
+    }
+  }
+  // ข้อปรนัยที่สุดท้ายแล้วก็ยังไม่เจอเฉลยเลย (ไม่มีทั้งแบบติดโจทย์และหน้าเฉลยแยก) ให้ default เป็นตัวเลือกแรกไว้กันระบบพัง
+  // ข้ออัตนัยที่ไม่มีคำตอบเลยจริงๆ ตัดทิ้ง เพราะใส่คำตอบเดาไม่ได้
+  const cleaned = out.filter(it => it.t !== 'sa' || it.a.length).map(({ num, ...rest }) => (rest.t === 'mc' && rest.a === -1 ? { ...rest, a: 0 } : rest));
+  return cleaned.length >= 3 ? cleaned : equalsFallback(text);
 }
 
 const IMAGE_MEDIA = { '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.gif': 'image/gif', '.webp': 'image/webp' };
