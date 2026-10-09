@@ -1,4 +1,4 @@
-// server.js — ExamOnline backend (หน้าบ้านใช้ดีไซน์ Stitch / ระบบหลังบ้านและห้องสอบสดเดิมของ examonline)
+// server.js — ExamFlow backend (รวมจาก ExamHub)
 // - REST API สำหรับชุดข้อสอบ/ผู้ใช้/ผลสอบ (ฐานข้อมูลกลางบน Turso — ทุกคนเห็นชุดเดียวกัน)
 // - เฉลยข้อสอบไม่เคยถูกส่งไปฝั่ง client ระหว่างทำข้อสอบ ตรวจให้คะแนนที่ฝั่งเซิร์ฟเวอร์เท่านั้น
 // - Socket.io: ห้องสอบสดแบบ Kahoot (host เปิดห้อง ได้ PIN, เพื่อนพิมพ์ชื่อเล่น join, ตอบพร้อมกัน, กระดานคะแนนสด)
@@ -23,7 +23,8 @@ const jwt = require('jsonwebtoken');
 const db = require('./db');
 const { sign, hash, check, optionalAuth, requireAuth, requireAdmin } = require('./auth');
 
-const SECRET = process.env.JWT_SECRET || 'examonline-dev-secret-change-me-in-production';
+const SECRET = process.env.JWT_SECRET || 'examhub-dev-secret-change-me-in-production';
+if (!process.env.JWT_SECRET && process.env.NODE_ENV === 'production') { console.error('ต้องตั้งค่า JWT_SECRET ใน production'); process.exit(1); }
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: '*' } });
@@ -212,7 +213,7 @@ async function callClaudeExtract({ text, fileBuffer, mediaType }) {
   const resp = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
-    body: JSON.stringify({ model: process.env.ANTHROPIC_MODEL || 'claude-sonnet-5', max_tokens: 8000, system: IMPORT_PROMPT, messages: [{ role: 'user', content }] }),
+    body: JSON.stringify({ model: process.env.ANTHROPIC_MODEL || 'claude-sonnet-5-5', max_tokens: 8000, system: IMPORT_PROMPT, messages: [{ role: 'user', content }] }),
   });
   if (!resp.ok) { const t = await resp.text().catch(() => ''); throw new Error('เรียก AI ไม่สำเร็จ (' + resp.status + ') ' + t.slice(0, 200)); }
   const data = await resp.json();
@@ -304,8 +305,34 @@ function heuristicExtract(text) {
   }
   // ข้อปรนัยที่สุดท้ายแล้วก็ยังไม่เจอเฉลยเลย (ไม่มีทั้งแบบติดโจทย์และหน้าเฉลยแยก) ให้ default เป็นตัวเลือกแรกไว้กันระบบพัง
   // ข้ออัตนัยที่ไม่มีคำตอบเลยจริงๆ ตัดทิ้ง เพราะใส่คำตอบเดาไม่ได้
-  const cleaned = out.filter(it => it.t !== 'sa' || it.a.length).map(({ num, ...rest }) => (rest.t === 'mc' && rest.a === -1 ? { ...rest, a: 0 } : rest));
+  const cleaned = out.filter(it => it.t !== 'sa' || it.a.length).map(({ num, ...rest }) => (rest.t === 'mc' && rest.a === -1 ? { ...rest, a: 0, keyMissing: true } : rest));
   return cleaned.length >= 3 ? cleaned : equalsFallback(text);
+}
+
+
+// ตัวอ่านตาราง Excel/CSV แบบรู้จักคอลัมน์ (ใช้เมื่อไม่มี ANTHROPIC_API_KEY) — เพิ่มใน ExamFlow
+// รูปแบบที่รองรับ: [โจทย์ | เฉลย] เป็นอัตนัย หรือ [โจทย์ | ตัวเลือก 2+ ช่อง | เฉลย] เป็นปรนัย
+// แถวแรกถ้าเป็นหัวตาราง (โจทย์/question/เฉลย/answer) จะถูกข้าม; เฉลยปรนัยเป็น ก-ฌ, A-H หรือเลขลำดับ 1-based ก็ได้
+function sheetExtract(rows) {
+  const T = 'กขคงจฉชซฌ', out = [];
+  const isHead = r => /โจทย์|คำถาม|question|เฉลย|คำตอบ|answer/i.test(r.slice(0, 2).concat(r.slice(-1)).join(' ')) && r.every(c => !/^\d+(\.\d+)?$/.test(c));
+  rows = rows.map(r => r.map(c => String(c ?? '').trim())).filter(r => r.some(Boolean));
+  if (rows.length && isHead(rows[0])) rows.shift();
+  for (const r of rows) {
+    while (r.length && !r[r.length - 1]) r.pop();
+    if (r.length < 2 || !r[0]) continue;
+    if (r.length === 2) { out.push({ t: 'sa', q: r[0].replace(/\s*[=＝]\s*$/, '').trim(), a: r[1].split(/\s*[\/|]\s*/).filter(Boolean), ex: '' }); continue; }
+    const key = r[r.length - 1], ch = r.slice(1, -1).filter(Boolean);
+    if (ch.length < 2) continue;
+    const k = key.replace(/[().\s]/g, '');
+    let idx = T.indexOf(k.charAt(0));
+    if (idx < 0 && /^[A-Ha-h]$/.test(k)) idx = 'abcdefgh'.indexOf(k.toLowerCase());
+    if (idx < 0 && /^\d+$/.test(k)) idx = +k - 1;
+    if (idx < 0) { const t = ch.findIndex(c => c === key); idx = t; }   // เฉลยเป็นข้อความเต็มของตัวเลือก
+    const missing = !(idx >= 0 && idx < ch.length);
+    out.push({ t: 'mc', q: r[0], ch, a: missing ? 0 : idx, ex: '', ...(missing ? { keyMissing: true } : {}) });
+  }
+  return out;
 }
 
 const IMAGE_MEDIA = { '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.gif': 'image/gif', '.webp': 'image/webp' };
@@ -314,7 +341,7 @@ app.post('/api/admin/import', requireAuth, requireAdmin, importUpload.single('fi
   if (!req.file) return res.status(400).json({ error: 'ไม่พบไฟล์ที่อัปโหลด' });
   const ext = path.extname(req.file.originalname || '').toLowerCase();
   const buf = req.file.buffer;
-  let list, source;
+  let list, source, sheetRows = null;
   try {
     if (ext === '.pdf' || IMAGE_MEDIA[ext]) {
       list = await callClaudeExtract({ fileBuffer: buf, mediaType: ext === '.pdf' ? 'application/pdf' : IMAGE_MEDIA[ext] });
@@ -325,11 +352,17 @@ app.post('/api/admin/import', requireAuth, requireAdmin, importUpload.single('fi
       else if (ext === '.xlsx' || ext === '.xls' || ext === '.csv') {
         const wb = XLSX.read(buf, { type: 'buffer' });
         text = wb.SheetNames.map(n => XLSX.utils.sheet_to_csv(wb.Sheets[n])).join('\n\n');
+        sheetRows = wb.SheetNames.flatMap(n => XLSX.utils.sheet_to_json(wb.Sheets[n], { header: 1, defval: '' }));
       } else if (ext === '.txt' || ext === '.md') text = buf.toString('utf-8');
       else return res.status(400).json({ error: 'ไม่รองรับไฟล์นามสกุลนี้ รองรับ .docx .xlsx .xls .csv .pdf .jpg .png .gif .webp .txt .md' });
       if (!text.trim()) return res.status(400).json({ error: 'ไม่พบข้อความในไฟล์นี้' });
       try { list = await callClaudeExtract({ text }); source = 'AI'; }
-      catch (e) { if (e.code !== 'NO_API_KEY') throw e; list = heuristicExtract(text); source = 'ตัวแยกอัตโนมัติ (ยังไม่ได้ตั้งค่า AI — ผลลัพธ์อาจไม่แม่นยำเท่า)'; }
+      catch (e) {
+        if (e.code !== 'NO_API_KEY') throw e;
+        list = sheetRows ? sheetExtract(sheetRows) : [];
+        if (!list.length) list = heuristicExtract(text);
+        source = 'ตัวแยกอัตโนมัติ (ยังไม่ได้ตั้งค่า AI — ผลลัพธ์อาจไม่แม่นยำเท่า)';
+      }
     }
   } catch (e) {
     if (e.code === 'NO_API_KEY') return res.status(400).json({ error: 'ไฟล์นี้ต้องใช้ AI ช่วยอ่าน (รูปภาพ/PDF) แต่เซิร์ฟเวอร์ยังไม่ได้ตั้งค่า ANTHROPIC_API_KEY กรุณาตั้งค่าก่อนใช้งาน' });
@@ -339,8 +372,9 @@ app.post('/api/admin/import', requireAuth, requireAdmin, importUpload.single('fi
     x.t === 'mc' ? Array.isArray(x.ch) && x.ch.length >= 2 && Number.isInteger(x.a) && x.a >= 0 && x.a < x.ch.length
       : Array.isArray(x.a) && x.a.length
   )).map(x => ({ ...x, ex: x.ex || '' }));
+  const keyMissing = list.filter(x => x.keyMissing).length;
   if (!list.length) return res.status(400).json({ error: 'ไม่พบข้อสอบในไฟล์นี้ ลองตรวจรูปแบบไฟล์หรือใช้ไฟล์อื่น' });
-  res.json({ source, questions: list });
+  res.json({ source, keyMissing, questions: list });
 }));
 
 app.post('/api/admin/sets/:id/questions/bulk', requireAuth, requireAdmin, ah(async (req, res) => {
@@ -376,22 +410,13 @@ app.put('/api/admin/users/:id/role', requireAuth, requireAdmin, ah(async (req, r
 
 // ---------- Exam taking: answers never leave the server until grading ----------
 const sessions = new Map(); // sessionId -> { qs:[fullQuestion...], setId, setTitle, mode, startedAt }
-// แบ่งข้อสอบเป็น "ตอน/หมวด" ตาม section_note (ข้อที่มี section_note คือข้อแรกของตอนนั้น)
-// ใช้กับหน้าผลสอบ (สถิติรายหมวด + เรดาร์) — ถ้าชุดข้อสอบไม่มี section_note เลย section จะเป็น null
-function assignSections(all) {
-  let cur = all.some(q => q.section_note) ? 'ส่วนที่ไม่ระบุหัวข้อ' : null;
-  return all.map(q => {
-    if (q.section_note) cur = q.section_note.split('\n').map(x => x.trim()).filter(Boolean).join(' · ');
-    return { ...q, section: cur };
-  });
-}
 const sanitizeQ = q => ({ id: q.id, type: q.type, q: q.q, q_image: q.q_image, section_note: q.section_note || null, choices: q.choices ? JSON.parse(q.choices).map(c => ({ text: c.text, image: c.image })) : null });
 
 app.post('/api/exam/start', ah(async (req, res) => {
   const { setId, mode, format, shuffle } = req.body || {};
   const s = await db.prepare('SELECT * FROM sets WHERE id=?').get(setId);
   if (!s) return res.status(404).json({ error: 'ไม่พบชุดข้อสอบ' });
-  let qs = assignSections(await db.prepare('SELECT * FROM questions WHERE set_id=? ORDER BY ord ASC').all(setId));
+  let qs = await db.prepare('SELECT * FROM questions WHERE set_id=? ORDER BY ord ASC').all(setId);
   if (format === 'mc' || format === 'sa') qs = qs.filter(q => q.type === format);
   if (shuffle) qs = qs.slice().sort(() => Math.random() - 0.5);
   if (!qs.length) return res.status(400).json({ error: 'ชุดข้อสอบนี้ไม่มีข้อสอบในรูปแบบที่เลือก' });
@@ -413,6 +438,7 @@ function rightAnswerText(q) {
 app.post('/api/exam/:sid/check', (req, res) => {
   const sess = sessions.get(req.params.sid);
   if (!sess) return res.status(410).json({ error: 'เซสชันหมดอายุ กรุณาเริ่มทำข้อสอบใหม่' });
+  if (sess.mode !== 'p') return res.status(403).json({ error: 'โหมดสอบจริงไม่เปิดเฉลยระหว่างทำข้อสอบ' });
   const q = sess.qs.find(x => x.id === req.body.questionId);
   if (!q) return res.status(404).json({ error: 'ไม่พบข้อสอบข้อนี้' });
   const ok = gradeOne(q, req.body.answer);
@@ -422,10 +448,10 @@ app.post('/api/exam/:sid/check', (req, res) => {
 app.post('/api/exam/:sid/submit', ah(async (req, res) => {
   const sess = sessions.get(req.params.sid);
   if (!sess) return res.status(410).json({ error: 'เซสชันหมดอายุ กรุณาเริ่มทำข้อสอบใหม่' });
-  const { answers = {}, qtimes = {}, sec = 0, away = 0, guestName } = req.body || {};
+  const { answers = {}, sec = 0, away = 0, guestName } = req.body || {};
   const detail = sess.qs.map(q => {
     const a = answers[q.id];
-    return { questionId: q.id, q: q.q, q_image: q.q_image || null, section: q.section || null, sec: Math.max(0, Math.min(86400, Math.round(+qtimes[q.id] || 0))), type: q.type, choices: q.choices ? JSON.parse(q.choices) : null, given: a ?? null, correct: gradeOne(q, a), rightAnswer: rightAnswerText(q), rightIndex: q.type === 'mc' ? JSON.parse(q.answer) : null, explanation: q.explanation || '' };
+    return { questionId: q.id, q: q.q, type: q.type, choices: q.choices ? JSON.parse(q.choices) : null, given: a ?? null, correct: gradeOne(q, a), rightAnswer: rightAnswerText(q), explanation: q.explanation || '' };
   });
   const score = detail.filter(d => d.correct).length;
   const result = {
@@ -449,17 +475,13 @@ app.get('/api/results', ah(async (req, res) => {
 app.get('/api/results/:id', ah(async (req, res) => {
   const r = await db.prepare('SELECT * FROM results WHERE id=?').get(req.params.id);
   if (!r) return res.status(404).json({ error: 'ไม่พบผลสอบ' });
-  const detail = JSON.parse(r.detail);
-  // สถิติเทียบกับผู้สอบคนอื่นในชุดเดียวกัน (นับเฉพาะโหมดสอบจริง และไม่นับผลห้องสอบสดที่ detail ไม่ใช่ array)
-  let stats = null;
-  if (Array.isArray(detail) && r.mode === 'm' && r.set_id && r.total > 0) {
-    const a = await db.prepare("SELECT COUNT(*) n, AVG(sec) avg_sec, AVG(score*1.0/total) avg_pct, MAX(score*1.0/total) max_pct, SUM(CASE WHEN score*1.0/total > @pct + 1e-9 THEN 1 ELSE 0 END) higher FROM results WHERE set_id=@sid AND mode='m' AND total>0 AND detail LIKE '[%'").get({ pct: r.score / r.total, sid: r.set_id });
-    const st = await db.prepare('SELECT time FROM sets WHERE id=?').get(r.set_id);
-    stats = { rank: (a.higher || 0) + 1, participants: a.n, avg_pct: a.avg_pct, max_pct: a.max_pct, avg_sec: a.avg_sec, time_limit: st ? st.time : 0 };
+  let rank = null, of = null, avg = null;
+  if (r.set_id) {
+    const peers = await db.prepare("SELECT score FROM results WHERE set_id=? AND mode=? AND detail NOT LIKE '%livePoints%'").all(r.set_id, r.mode);
+    of = peers.length; rank = 1 + peers.filter(x => Number(x.score) > r.score).length;
+    avg = of ? peers.reduce((a, x) => a + Number(x.score), 0) / of : null;
   }
-  let examinee = r.guest_name || null;
-  if (r.user_id) { const u = await db.prepare('SELECT name FROM users WHERE id=?').get(r.user_id); if (u) examinee = u.name; }
-  res.json({ id: r.id, set_id: r.set_id, examinee, title: r.set_title, score: r.score, total: r.total, mode: r.mode, sec: r.sec, away: r.away, date: r.created_at, detail, stats });
+  res.json({ id: r.id, title: r.set_title, score: r.score, total: r.total, mode: r.mode, sec: r.sec, away: r.away, date: r.created_at, rank, of, avg, detail: JSON.parse(r.detail) });
 }));
 
 // =====================================================================
@@ -599,7 +621,7 @@ const PORT = process.env.PORT || 3000;
 // จะ import { app } จากไฟล์นี้ไปใช้กับ Vercel Functions แทนโดยไม่เรียก listen()
 if (require.main === module) {
   db.ready
-    .then(() => server.listen(PORT, () => console.log(`ExamOnline server running on http://localhost:${PORT}`)))
+    .then(() => server.listen(PORT, () => console.log(`ExamFlow server running on http://localhost:${PORT}`)))
     .catch(err => { console.error('เชื่อมต่อฐานข้อมูล Turso ไม่สำเร็จ:', err); process.exit(1); });
 }
 

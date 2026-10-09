@@ -1,7 +1,7 @@
 {
-  "name": "examonline",
+  "name": "examflow",
   "version": "1.0.0",
-  "description": "ExamOnline - ระบบสอบออนไลน์ (หน้าบ้านดีไซน์ Stitch) พร้อม backend กลาง, auth จริง, โจทย์/คำตอบรูปภาพ, และห้องสอบสดแบบ Kahoot",
+  "description": "ExamFlow — ระบบสอบออนไลน์ (ดีไซน์ Stitch เป็นระบบหลัก + backend/ฟีเจอร์จาก ExamHub)",
   "main": "server/server.js",
   "scripts": {
     "start": "node --env-file=.env server/server.js",

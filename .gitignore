@@ -1,5 +1,6 @@
 node_modules/
 .env
 .vercel
+local.db*
 server/uploads/*
 !server/uploads/.gitkeep

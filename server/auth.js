@@ -6,7 +6,8 @@
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 
-const SECRET = process.env.JWT_SECRET || 'examonline-dev-secret-change-me-in-production';
+const SECRET = process.env.JWT_SECRET || 'examhub-dev-secret-change-me-in-production';
+if (!process.env.JWT_SECRET && process.env.NODE_ENV === 'production') { console.error('ต้องตั้งค่า JWT_SECRET ใน production'); process.exit(1); }
 
 function sign(user) {
   return jwt.sign({ uid: user.id, role: user.role, name: user.name, email: user.email }, SECRET, { expiresIn: '30d' });
