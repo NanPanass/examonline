@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+
+<html lang="th"><head><meta charset="utf-8"/><meta content="width=device-width, initial-scale=1.0" name="viewport"/><meta content="web_standard" name="shell-type"/><title>ExamFlow - Assessment Platform</title><link href="https://fonts.googleapis.com" rel="preconnect"/><link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Plus+Jakarta+Sans:wght@600;700&amp;display=swap" rel="stylesheet"/><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/><style>@layer base { html, body { margin: 0; padding: 0; } body { overscroll-behavior: none; } main > :first-child { margin-top: 0 !important; } main > :last-child { margin-bottom: 0 !important; } } ::-webkit-scrollbar { display: none; }</style><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">tailwind.config = { darkMode: "class", theme: { extend: { "colors": { "on-background": "#131b2e", "tertiary-fixed-dim": "#ffb77d", "inverse-on-surface": "#eef0ff", "on-secondary-fixed": "#00201d", "surface-container-high": "#e2e7ff", "surface": "#faf8ff", "primary-container": "#1e40af", "on-primary-fixed": "#001453", "surface-bright": "#faf8ff", "tertiary-container": "#743d00", "on-primary": "#ffffff", "on-surface-variant": "#444653", "on-error": "#ffffff", "primary-fixed-dim": "#b8c4ff", "error": "#ba1a1a", "inverse-surface": "#283044", "on-secondary-fixed-variant": "#005049", "surface-variant": "#dae2fd", "surface-container-lowest": "#ffffff", "on-tertiary-fixed": "#2f1500", "secondary-container": "#86f2e4", "primary-fixed": "#dde1ff", "tertiary": "#532a00", "secondary-fixed-dim": "#6bd8cb", "secondary": "#006a61", "inverse-primary": "#b8c4ff", "on-secondary-container": "#006f66", "on-tertiary": "#ffffff", "surface-dim": "#d2d9f4", "outline-variant": "#c4c5d5", "on-tertiary-fixed-variant": "#6e3900", "on-surface": "#131b2e", "background": "#faf8ff", "outline": "#757684", "tertiary-fixed": "#ffdcc3", "surface-container-highest": "#dae2fd", "on-secondary": "#ffffff", "surface-tint": "#3755c3", "on-primary-fixed-variant": "#173bab", "on-primary-container": "#a8b8ff", "error-container": "#ffdad6", "on-tertiary-container": "#ffa85d", "surface-container-low": "#f2f3ff", "secondary-fixed": "#89f5e7", "surface-container": "#eaedff", "primary": "#00288e", "on-error-container": "#93000a" }, "borderRadius": { "DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px" }, "spacing": { "gutter": "1.5rem", "space-xl": "2.5rem", "space-md": "1rem", "space-sm": "0.5rem", "gutter-mobile": "1rem", "space-xs": "0.25rem", "margin-mobile": "1rem", "margin": "2rem", "space-lg": "1.5rem" }, "fontFamily": { "headline-lg-mobile": [ "Plus Jakarta Sans" ], "body-md": [ "Inter" ], "headline-xl-mobile": [ "Plus Jakarta Sans" ], "label-sm": [ "Inter" ], "headline-sm": [ "Plus Jakarta Sans" ], "label-md": [ "Inter" ], "headline-md": [ "Plus Jakarta Sans" ], "body-lg": [ "Inter" ], "body-sm": [ "Inter" ], "headline-xl": [ "Plus Jakarta Sans" ], "headline-lg": [ "Plus Jakarta Sans" ], "label-lg": [ "Inter" ] }, "fontSize": { "headline-lg-mobile": [ "24px", { "lineHeight": "32px", "letterSpacing": "-0.015em", "fontWeight": "600" } ], "body-md": [ "16px", { "lineHeight": "24px", "fontWeight": "400" } ], "headline-xl-mobile": [ "28px", { "lineHeight": "36px", "letterSpacing": "-0.02em", "fontWeight": "700" } ], "label-sm": [ "11px", { "lineHeight": "14px", "letterSpacing": "0.04em", "fontWeight": "600" } ], "headline-sm": [ "18px", { "lineHeight": "26px", "letterSpacing": "-0.005em", "fontWeight": "600" } ], "label-md": [ "12px", { "lineHeight": "16px", "letterSpacing": "0.02em", "fontWeight": "500" } ], "headline-md": [ "22px", { "lineHeight": "30px", "letterSpacing": "-0.01em", "fontWeight": "600" } ], "body-lg": [ "18px", { "lineHeight": "28px", "fontWeight": "400" } ], "body-sm": [ "14px", { "lineHeight": "20px", "fontWeight": "400" } ], "headline-xl": [ "36px", { "lineHeight": "44px", "letterSpacing": "-0.02em", "fontWeight": "700" } ], "headline-lg": [ "28px", { "lineHeight": "36px", "letterSpacing": "-0.015em", "fontWeight": "600" } ], "label-lg": [ "14px", { "lineHeight": "20px", "letterSpacing": "0.01em", "fontWeight": "600" } ] } } } };</script></head><body class="bg-background text-on-surface font-body-md text-body-md min-h-screen"><header class="fixed top-0 w-full z-50 bg-surface-container-lowest/90 backdrop-blur-md shadow-[0_1px_8px_rgba(0,0,0,0.04)]"><div class="h-16 w-full px-margin flex items-center justify-between gap-space-md"><div class="flex items-center gap-space-lg"><a class="flex items-center gap-space-sm" data-path="exam-portal" href="#"><img alt="ExamFlow Logo" class="h-8 w-auto object-contain" src="https://lh3.googleusercontent.com/aida/AEtjO1Wk8CtIKEZfIVYUVAI5VH7XwZme2RJPjYg6fVqTzAr7Hiv5nTF3jkchb6AkRdvv30xSSmIBmA-BX-uaCmciAdzIGA2Sh9BvOZfpSsjhV1MJjYG95tbCjfFvFoZYyGr89HDlds9uCCsYa86-T3kaYVLTn360XggYWodWeHqXoHyrGGbPHPrPBc90rr8iipcbiE2JoaH3P-Vmr12SyxEjlZr60rH56mP5loRkKcqajbDiu8VLxGMbeUpL4d9B"/><span class="font-headline-md text-headline-md text-primary tracking-tight">ExamFlow</span></a><div class="hidden xl:flex items-center gap-space-xs px-space-sm py-1 bg-surface-container-low rounded-full"><span class="w-2 h-2 rounded-full bg-secondary"></span><span class="font-label-sm text-label-sm text-on-surface-variant">เชื่อมต่อ Google Workspace สำหรับการศึกษาแล้ว</span></div></div><nav class="hidden md:flex items-center gap-space-xs" data-active-classes="bg-surface-container-high text-on-surface font-semibold"><a class="px-space-md py-space-sm rounded-lg font-label-lg text-label-lg text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface transition-colors" data-path="exam-portal" href="#">Portal ข้อสอบ</a><a class="px-space-md py-space-sm rounded-lg font-label-lg text-label-lg text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface transition-colors" data-path="live-exam" href="#">ห้องสอบ Live Exam</a><a class="px-space-md py-space-sm rounded-lg font-label-lg text-label-lg text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface transition-colors" data-path="exam-management" href="#">จัดการข้อสอบ</a><a aria-current="page" class="px-space-md py-space-sm rounded-lg transition-colors bg-surface-container-high text-on-surface font-semibold" data-path="results-analytics" href="#">ผลสอบ &amp; สถิติ</a></nav><div class="flex items-center gap-space-sm"><button aria-label="การแจ้งเตือน" class="relative p-space-sm rounded-full text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors" type="button"><span class="material-symbols-outlined text-body-lg">notifications</span><span class="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-primary"></span></button><div class="flex items-center gap-space-sm pl-space-sm bg-surface-container-lowest rounded-full"><div class="flex items-center gap-space-xs cursor-pointer rounded-full p-0.5 hover:bg-surface-container transition-colors"><img alt="Profile" class="w-8 h-8 rounded-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCY82_zUQKF_7qCva-KaovzcbU4e8iQgy5xnRYyAFh8twdPnZ8-aW6ywzPaJHHgV7Si2S1TpoTcNJKyD-k7cVtqKkKukDvGTpcGbpSPUJOfv8gxXuBylbrKWtaiZyg6IbP80Frrskl3GLaF5T7O43QApDYJ-vDHZ-9cFk2lDAN0X5OtTTec-zutpNkHSI_AGj6O_YeQVfyKcu0WtaDfm3KwqCTapdJ5fZ-jHBL21tbT4nSLUSsYe5X67g"/><span class="material-symbols-outlined text-on-surface-variant text-body-md">expand_more</span></div></div></div></div></header><main class="w-full pt-16 bg-background"><div class="flex flex-col w-full">
+<div class="w-full max-w-7xl mx-auto px-margin-mobile md:px-margin py-space-lg flex flex-col gap-space-xl">
+<!-- Top Identity & Status Banner -->
+<div class="relative overflow-hidden rounded-xl bg-surface-container-lowest shadow-sm p-space-lg flex flex-col lg:flex-row lg:items-center lg:justify-between gap-space-lg">
+<div class="flex items-center gap-space-md">
+<div class="relative flex-shrink-0">
+<img class="w-16 h-16 rounded-full object-cover shadow-sm" data-alt="Clear modern portrait photograph of a focused university student wearing a navy collared shirt with subtle studio lighting and light blue neutral backdrop." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCr_gjIGDNB6LO4Tjx_s92VV7xc9hBvC-w-h4uu3EVgSwO9GN3VGRIQBjWNxyZCMZTSC9YZ2aFYDmnYP-UWdWBg4Q0ustScNAn1qZjXPBIpLbc6edEd-LOaaUe5830ULvGBlwmrV-j6uLvLInl-69e-a2VdkqAGQ8Qui7LVd4QIdBqWfbWlG-eR-vd2K4gjBNiVN-MV480CvC1xmUE1R9pgoCt1bj4syBNHtvBTr8XCJlTjXYtSrzFxEg"/>
+<span class="absolute bottom-0 right-0 w-5 h-5 rounded-full bg-secondary flex items-center justify-center text-on-secondary shadow-sm">
+<span class="material-symbols-outlined text-[14px]" style="font-variation-settings: 'FILL' 1;">verified</span>
+</span>
+</div>
+<div class="flex flex-col">
+<div class="flex flex-wrap items-center gap-space-xs">
+<span class="font-headline-sm text-headline-sm text-on-surface">นายภัทรดนัย อัครโยธิน</span>
+<span class="px-space-xs py-0.5 rounded-full bg-surface-container-high text-on-secondary-fixed-variant font-label-sm text-label-sm flex items-center gap-1">
+<span class="w-1.5 h-1.5 rounded-full bg-secondary"></span>
+              Google Classroom ID: phat.ak@ku.ac.th
+            </span>
+</div>
+<span class="font-body-sm text-body-sm text-on-surface-variant">รหัสประจำตัวผู้สอบ: EXF-2025-9842 • รายวิชา: ฟิสิกส์ทั่วไปขั้นสูง (PHYS-301)</span>
+</div>
+</div>
+<div class="flex flex-wrap items-center gap-space-sm">
+<button class="px-space-md py-2.5 rounded-lg bg-surface-container hover:bg-surface-container-high text-on-surface font-label-lg text-label-lg flex items-center gap-space-xs transition-colors shadow-sm" type="button">
+<span class="material-symbols-outlined text-[18px]">share</span>
+<span>แชร์ไปยัง Google Classroom</span>
+</button>
+<button class="px-space-md py-2.5 rounded-lg bg-primary hover:bg-primary-container text-on-primary font-label-lg text-label-lg flex items-center gap-space-xs transition-colors shadow-sm" type="button">
+<span class="material-symbols-outlined text-[18px]">download</span>
+<span>ดาวน์โหลดใบรับรองผลคะแนน (PDF)</span>
+</button>
+</div>
+</div>
+<!-- Master Performance Scorecards Bento Grid -->
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-space-md">
+<!-- Card 1: Master Score -->
+<div class="rounded-xl bg-surface-container-lowest p-space-lg shadow-sm flex flex-col justify-between">
+<div class="flex items-center justify-between">
+<span class="font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">คะแนนรวมสุทธิ</span>
+<span class="w-8 h-8 rounded-full bg-surface-container-low flex items-center justify-center text-primary">
+<span class="material-symbols-outlined text-[20px]">military_tech</span>
+</span>
+</div>
+<div class="my-space-md">
+<div class="flex items-baseline gap-space-xs">
+<span class="font-headline-xl text-headline-xl text-primary font-bold">46</span>
+<span class="font-headline-sm text-headline-sm text-on-surface-variant">/ 50</span>
+</div>
+<div class="flex items-center gap-space-xs mt-1">
+<span class="px-2 py-0.5 rounded bg-surface-container text-primary font-label-sm text-label-sm font-semibold">ระดับผลการเรียน A (92%)</span>
+</div>
+</div>
+<div class="w-full bg-surface-container-low h-1.5 rounded-full overflow-hidden">
+<div class="bg-primary h-full rounded-full" style="width: 92%"></div>
+</div>
+</div>
+<!-- Card 2: Ranking Position -->
+<div class="rounded-xl bg-surface-container-lowest p-space-lg shadow-sm flex flex-col justify-between">
+<div class="flex items-center justify-between">
+<span class="font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">อันดับคะแนนในรุ่น</span>
+<span class="w-8 h-8 rounded-full bg-surface-container-low flex items-center justify-center text-secondary">
+<span class="material-symbols-outlined text-[20px]">leaderboard</span>
+</span>
+</div>
+<div class="my-space-md">
+<div class="flex items-baseline gap-space-xs">
+<span class="font-headline-xl text-headline-xl text-secondary font-bold">#3</span>
+<span class="font-headline-sm text-headline-sm text-on-surface-variant">/ 120 คน</span>
+</div>
+<div class="flex items-center gap-space-xs mt-1">
+<span class="text-secondary font-label-sm text-label-sm font-semibold">อยู่ในกลุ่ม Top 2.5% ของผู้สอบทั้งหมด</span>
+</div>
+</div>
+<div class="text-on-surface-variant font-label-sm text-label-sm flex items-center justify-between">
+<span>คะแนนเฉลี่ยรวม: 34.2</span>
+<span>สูงสุด: 49.0</span>
+</div>
+</div>
+<!-- Card 3: Time Spent -->
+<div class="rounded-xl bg-surface-container-lowest p-space-lg shadow-sm flex flex-col justify-between">
+<div class="flex items-center justify-between">
+<span class="font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">เวลาที่ใช้ทำข้อสอบ</span>
+<span class="w-8 h-8 rounded-full bg-surface-container-low flex items-center justify-center text-on-surface">
+<span class="material-symbols-outlined text-[20px]">timer</span>
+</span>
+</div>
+<div class="my-space-md">
+<div class="flex items-baseline gap-space-xs">
+<span class="font-headline-xl text-headline-xl text-on-surface font-bold">42</span>
+<span class="font-headline-sm text-headline-sm text-on-surface-variant">นาที</span>
+</div>
+<div class="flex items-center gap-space-xs mt-1">
+<span class="text-on-surface-variant font-label-sm text-label-sm">จากเวลาที่กำหนด 60 นาที (เร็วกว่าเฉลี่ย 8 นาที)</span>
+</div>
+</div>
+<div class="w-full bg-surface-container-low h-1.5 rounded-full overflow-hidden">
+<div class="bg-secondary-fixed-dim h-full rounded-full" style="width: 70%"></div>
+</div>
+</div>
+<!-- Card 4: Accuracy Metrics -->
+<div class="rounded-xl bg-surface-container-lowest p-space-lg shadow-sm flex flex-col justify-between">
+<div class="flex items-center justify-between">
+<span class="font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">สัดส่วนความถูกต้อง</span>
+<span class="w-8 h-8 rounded-full bg-surface-container-low flex items-center justify-center text-primary-container">
+<span class="material-symbols-outlined text-[20px]">pie_chart</span>
+</span>
+</div>
+<div class="my-space-md flex items-center justify-between">
+<div>
+<div class="font-headline-xl text-headline-xl text-on-surface font-bold">92%</div>
+<div class="text-on-surface-variant font-label-sm text-label-sm">ตอบถูก 46 จาก 50 ข้อ</div>
+</div>
+<div class="flex flex-col gap-1 text-right">
+<span class="font-label-sm text-label-sm text-secondary font-semibold">✓ ถูก 46 ข้อ</span>
+<span class="font-label-sm text-label-sm text-error font-semibold">✗ ผิด 4 ข้อ</span>
+</div>
+</div>
+<div class="flex items-center gap-1 w-full">
+<div class="h-1.5 rounded-l-full bg-secondary flex-grow" style="flex: 46;"></div>
+<div class="h-1.5 rounded-r-full bg-error flex-grow" style="flex: 4;"></div>
+</div>
+</div>
+</div>
+<!-- Analytics Section: Skill Radar + Topic Breakdown -->
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-space-lg">
+<!-- Topic Mastery Breakdown Cards -->
+<div class="lg:col-span-7 flex flex-col gap-space-md">
+<div class="rounded-xl bg-surface-container-lowest p-space-lg shadow-sm flex flex-col gap-space-md h-full">
+<div class="flex items-center justify-between">
+<div class="flex flex-col">
+<span class="font-headline-sm text-headline-sm text-on-surface">การวิเคราะห์ผลการเรียนรู้รายหมวดวิชา</span>
+<span class="font-body-sm text-body-sm text-on-surface-variant">ระดับสมรรถนะเปรียบเทียบกับเกณฑ์ความสามารถขั้นสูง</span>
+</div>
+<span class="material-symbols-outlined text-primary text-[24px]">analytics</span>
+</div>
+<div class="flex flex-col gap-space-md mt-space-sm">
+<!-- Topic 1 -->
+<div class="p-space-md rounded-lg bg-surface-container-low flex flex-col gap-space-xs">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-space-xs">
+<span class="w-3 h-3 rounded-full bg-primary"></span>
+<span class="font-label-lg text-label-lg text-on-surface">1. กลศาสตร์และพลศาสตร์ (Mechanics)</span>
+</div>
+<div class="flex items-center gap-space-sm">
+<span class="font-label-md text-label-md text-on-surface-variant">19/20 ข้อ</span>
+<span class="font-headline-sm text-headline-sm text-primary font-bold">95%</span>
+</div>
+</div>
+<div class="w-full bg-surface-container h-2 rounded-full overflow-hidden">
+<div class="bg-primary h-full rounded-full" style="width: 95%;"></div>
+</div>
+<span class="font-body-sm text-body-sm text-on-surface-variant">ความเข้าใจเรื่องกฎการเคลื่อนที่ของนิวตันและงาน-พลังงานอยู่ในระดับดีเยี่ยม</span>
+</div>
+<!-- Topic 2 -->
+<div class="p-space-md rounded-lg bg-surface-container-low flex flex-col gap-space-xs">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-space-xs">
+<span class="w-3 h-3 rounded-full bg-secondary"></span>
+<span class="font-label-lg text-label-lg text-on-surface">2. อุณหพลศาสตร์และความร้อน (Thermodynamics)</span>
+</div>
+<div class="flex items-center gap-space-sm">
+<span class="font-label-md text-label-md text-on-surface-variant">10/10 ข้อ</span>
+<span class="font-headline-sm text-headline-sm text-secondary font-bold">100%</span>
+</div>
+</div>
+<div class="w-full bg-surface-container h-2 rounded-full overflow-hidden">
+<div class="bg-secondary h-full rounded-full" style="width: 100%;"></div>
+</div>
+<span class="font-body-sm text-body-sm text-on-surface-variant">ทำคะแนนได้สมบูรณ์แบบในส่วนของวัฏจักรคาร์โนต์และการคำนวณเอนโทรปี</span>
+</div>
+<!-- Topic 3 -->
+<div class="p-space-md rounded-lg bg-surface-container-low flex flex-col gap-space-xs">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-space-xs">
+<span class="w-3 h-3 rounded-full bg-surface-tint"></span>
+<span class="font-label-lg text-label-lg text-on-surface">3. คลื่นและทัศนศาสตร์ (Waves &amp; Optics)</span>
+</div>
+<div class="flex items-center gap-space-sm">
+<span class="font-label-md text-label-md text-on-surface-variant">9/10 ข้อ</span>
+<span class="font-headline-sm text-headline-sm text-surface-tint font-bold">90%</span>
+</div>
+</div>
+<div class="w-full bg-surface-container h-2 rounded-full overflow-hidden">
+<div class="bg-surface-tint h-full rounded-full" style="width: 90%;"></div>
+</div>
+<span class="font-body-sm text-body-sm text-on-surface-variant">ตอบถูกในหลักการแทรกสอดและการเลี้ยวเบน พลาดข้อคำนวณการหักเหแสงผ่านปริซึม 1 ข้อ</span>
+</div>
+<!-- Topic 4 -->
+<div class="p-space-md rounded-lg bg-surface-container-low flex flex-col gap-space-xs">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-space-xs">
+<span class="w-3 h-3 rounded-full bg-tertiary-container"></span>
+<span class="font-label-lg text-label-lg text-on-surface">4. ไฟฟ้าสถิตและแม่เหล็กไฟฟ้า (Electrostatics)</span>
+</div>
+<div class="flex items-center gap-space-sm">
+<span class="font-label-md text-label-md text-on-surface-variant">8/10 ข้อ</span>
+<span class="font-headline-sm text-headline-sm text-tertiary-container font-bold">80%</span>
+</div>
+</div>
+<div class="w-full bg-surface-container h-2 rounded-full overflow-hidden">
+<div class="bg-tertiary-container h-full rounded-full" style="width: 80%;"></div>
+</div>
+<span class="font-body-sm text-body-sm text-on-surface-variant">จุดที่ควรพัฒนา: การวิเคราะห์ศักย์ไฟฟ้าในสนามหลายประจุและสมการเกาส์</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Skill Radar Visualization Chart -->
+<div class="lg:col-span-5 flex flex-col">
+<div class="rounded-xl bg-surface-container-lowest p-space-lg shadow-sm flex flex-col items-center justify-between h-full">
+<div class="w-full flex items-center justify-between">
+<div>
+<span class="font-headline-sm text-headline-sm text-on-surface">เรดาร์สมรรถนะ (Competency Radar)</span>
+<p class="font-body-sm text-body-sm text-on-surface-variant">การกระจายความชำนาญเทียบค่ามาตรฐานห้องเรียน</p>
+</div>
+<span class="px-2 py-1 rounded bg-secondary-container text-on-secondary-container font-label-sm text-label-sm">เกียรตินิยม</span>
+</div>
+<!-- Radar Chart Inline SVG -->
+<div class="w-full max-w-[320px] aspect-square my-space-md flex items-center justify-center relative">
+<svg class="w-full h-full overflow-visible" viewbox="0 0 300 300">
+<!-- Web Polygons -->
+<polygon class="text-surface-container-highest" fill="none" points="150,30 270,150 150,270 30,150" stroke="currentColor" stroke-width="1.5"></polygon>
+<polygon class="text-surface-container-highest" fill="none" points="150,60 240,150 150,240 60,150" stroke="currentColor" stroke-width="1.5"></polygon>
+<polygon class="text-surface-container-highest" fill="none" points="150,90 210,150 150,210 90,150" stroke="currentColor" stroke-width="1.5"></polygon>
+<polygon class="text-surface-container-highest" fill="none" points="150,120 180,150 150,180 120,150" stroke="currentColor" stroke-dasharray="3,3" stroke-width="1"></polygon>
+<!-- Axis Lines -->
+<line class="text-surface-container-highest" stroke="currentColor" stroke-width="1.5" x1="150" x2="150" y1="30" y2="270"></line>
+<line class="text-surface-container-highest" stroke="currentColor" stroke-width="1.5" x1="30" x2="270" y1="150" y2="150"></line>
+<!-- Class Average Shape (Benchmark) -->
+<polygon fill="rgba(117,118,132,0.15)" points="150,85 220,150 150,225 80,150" stroke="#757684" stroke-dasharray="4,4" stroke-width="1.5"></polygon>
+<!-- Student Score Shape: Mechanics 95% (Top: 150,36), Waves 90% (Right: 258,150), Thermodynamics 100% (Bottom: 150,270), Electrostatics 80% (Left: 54,150) -->
+<polygon fill="rgba(30,64,175,0.2)" points="150,36 258,150 150,270 54,150" stroke="#1e40af" stroke-width="2.5"></polygon>
+<!-- Data Node Circles -->
+<circle cx="150" cy="36" fill="#1e40af" r="4.5"></circle>
+<circle cx="258" cy="150" fill="#1e40af" r="4.5"></circle>
+<circle cx="150" cy="270" fill="#1e40af" r="4.5"></circle>
+<circle cx="54" cy="150" fill="#1e40af" r="4.5"></circle>
+<!-- Labels -->
+<text class="text-[11px] font-semibold fill-[#131b2e]" text-anchor="middle" x="150" y="18">กลศาสตร์ (95%)</text>
+<text class="text-[11px] font-semibold fill-[#131b2e]" text-anchor="start" x="282" y="154">คลื่น/แสง (90%)</text>
+<text class="text-[11px] font-semibold fill-[#131b2e]" text-anchor="middle" x="150" y="292">อุณหพลศาสตร์ (100%)</text>
+<text class="text-[11px] font-semibold fill-[#131b2e]" text-anchor="end" x="18" y="154">ไฟฟ้าสถิต (80%)</text>
+</svg>
+</div>
+<!-- Legend -->
+<div class="w-full flex items-center justify-center gap-space-lg pt-space-xs text-on-surface-variant font-label-sm text-label-sm">
+<div class="flex items-center gap-space-xs">
+<span class="w-3 h-3 rounded-sm bg-primary"></span>
+<span>คะแนนของคุณ</span>
+</div>
+<div class="flex items-center gap-space-xs">
+<span class="w-3 h-0.5 bg-outline"></span>
+<span>ค่าเฉลี่ยห้องเรียน (68.4%)</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Section: Detailed Question-by-Question Solution Review -->
+<div class="flex flex-col gap-space-md">
+<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-space-sm">
+<div>
+<span class="font-headline-md text-headline-md text-on-surface">เฉลยข้อสอบและวิเคราะห์รายข้อ (Itemized Solution Key)</span>
+<p class="font-body-sm text-body-sm text-on-surface-variant">ตรวจสอบข้อคำถาม แนวทางการให้คะแนน และคำอธิบายเชิงขั้นตอนแบบละเอียด</p>
+</div>
+<!-- Filter Tabs -->
+<div class="flex items-center p-1 rounded-lg bg-surface-container-low shadow-sm">
+<button class="px-space-md py-1.5 rounded bg-surface-container-lowest text-on-surface font-label-md text-label-md font-semibold shadow-xs" type="button">ทั้งหมด (50)</button>
+<button class="px-space-md py-1.5 rounded hover:bg-surface-container text-on-surface-variant font-label-md text-label-md" type="button">ตอบถูก (46)</button>
+<button class="px-space-md py-1.5 rounded hover:bg-surface-container text-error font-label-md text-label-md font-semibold" type="button">ข้อที่ต้องปรับปรุง (4)</button>
+</div>
+</div>
+<!-- Question Review Card 1 (Correct Answer with Diagram & Choices) -->
+<div class="rounded-xl bg-surface-container-lowest p-space-lg shadow-sm flex flex-col gap-space-md">
+<!-- Question Header Meta -->
+<div class="flex flex-wrap items-center justify-between gap-space-xs">
+<div class="flex items-center gap-space-sm">
+<span class="w-8 h-8 rounded-full bg-secondary text-on-secondary flex items-center justify-center font-label-lg text-label-lg font-bold">14</span>
+<span class="font-headline-sm text-headline-sm text-on-surface">ข้อที่ 14: การเคลื่อนที่แบบวงกลมและแรงตึงเชือกในแนวดิ่ง</span>
+</div>
+<div class="flex items-center gap-space-xs">
+<span class="px-space-sm py-1 rounded bg-secondary-container text-on-secondary-container font-label-sm text-label-sm font-semibold flex items-center gap-1">
+<span class="material-symbols-outlined text-[16px]">check_circle</span>
+              ตอบถูกต้อง (+1.0 คะแนน)
+            </span>
+<span class="px-space-sm py-1 rounded bg-surface-container font-label-sm text-label-sm text-on-surface-variant">เวลาที่ใช้: 1 นาที 14 วินาที</span>
+</div>
+</div>
+<!-- Question Prompt Body -->
+<p class="font-body-md text-body-md text-on-surface leading-relaxed">
+          วัตถุมวล \( m = 2.0 \, \text{kg} \) ผูกติดกับปลายเชือกยาว \( L = 1.5 \, \text{m} \) ถูกแกว่งให้เคลื่อนที่ในแนวดิ่งด้วยความเร็วคงตัว ขณะที่วัตถุอยู่ที่ตำแหน่งต่ำสุดของวิถีโค้ง มีอัตราเร็วเชิงเส้น \( v = 6.0 \, \text{m/s} \) จงคำนวณหาแรงตึงในเส้นเชือก \( (T) \) ณ ตำแหน่งต่ำสุดดังกล่าว (กำหนดให้ความเร่งโน้มถ่วง \( g = 9.8 \, \text{m/s}^2 \))
+        </p>
+<!-- Diagram / Figure -->
+<div class="w-full flex flex-col sm:flex-row items-center gap-space-md p-space-md rounded-lg bg-surface-container-low">
+<img class="w-full sm:w-64 h-44 rounded-lg object-contain bg-surface-container-lowest shadow-xs flex-shrink-0" data-alt="Technical physics textbook diagram showing vertical circular motion of a pendulum bob attached to a string, free body diagram with tension force vector pointing upwards and gravity vector downwards, labeled vectors in blue and dark navy with white background." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAwNx0ceRM_5E2NWld0qblUuKgzqRMaPMys_K4VoryKf47nkxutt3VEf62UFIHndU__QZx8ZbvMAy7BLnKSpmUf8cu1moxBW3bVXIrqQAM3T07i4g_zW15lRe5rI4ghogYvKEpAtuWNhkOaDYn75oCsZ37d0tjF6u1Wh0GuCTd0Heyy01YKGECtGzhoGgEKfNVQ2KjBUf_3515JvFLzzyP6bUNPkImFwu5oGctX7W2ONJxGs5vi1cEcrA"/>
+<div class="flex flex-col gap-space-xs">
+<span class="font-label-lg text-label-lg text-on-surface font-semibold">แผนภาพเวกเตอร์แรงอิสระ (Free Body Diagram)</span>
+<p class="font-body-sm text-body-sm text-on-surface-variant">พิจารณาแรงลัพธ์ที่เข้าสู่ศูนย์กลางความโค้ง ณ จุดต่ำสุด: แรงตึงเชือก \( T \) ชี้ขึ้นในทิศเข้าสู่ศูนย์กลาง และแรงโน้มถ่วง \( mg \) ชี้ลงในทิศตรงข้าม</p>
+</div>
+</div>
+<!-- Choices Matrix with Selected vs Correct Status -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-space-sm mt-space-xs">
+<!-- Choice A -->
+<div class="p-space-md rounded-lg bg-surface-container-low text-on-surface-variant flex items-start gap-space-sm">
+<span class="w-6 h-6 rounded-full bg-surface-container flex-shrink-0 flex items-center justify-center font-label-sm text-label-sm">ก</span>
+<span class="font-body-md text-body-md">29.4 นิวตัน (N)</span>
+</div>
+<!-- Choice B -->
+<div class="p-space-md rounded-lg bg-surface-container-low text-on-surface-variant flex items-start gap-space-sm">
+<span class="w-6 h-6 rounded-full bg-surface-container flex-shrink-0 flex items-center justify-center font-label-sm text-label-sm">ข</span>
+<span class="font-body-md text-body-md">48.0 นิวตัน (N)</span>
+</div>
+<!-- Choice C (Correct & Selected) -->
+<div class="p-space-md rounded-lg bg-secondary-container/40 text-on-surface flex items-start justify-between gap-space-sm">
+<div class="flex items-start gap-space-sm">
+<span class="w-6 h-6 rounded-full bg-secondary text-on-secondary flex-shrink-0 flex items-center justify-center font-label-sm text-label-sm font-bold">ค</span>
+<div class="flex flex-col">
+<span class="font-body-md text-body-md font-semibold text-on-surface">67.6 นิวตัน (N)</span>
+<span class="font-label-sm text-label-sm text-secondary font-semibold">คำตอบของคุณ (ถูกต้อง)</span>
+</div>
+</div>
+<span class="material-symbols-outlined text-secondary text-[22px]">check_circle</span>
+</div>
+<!-- Choice D -->
+<div class="p-space-md rounded-lg bg-surface-container-low text-on-surface-variant flex items-start gap-space-sm">
+<span class="w-6 h-6 rounded-full bg-surface-container flex-shrink-0 flex items-center justify-center font-label-sm text-label-sm">ง</span>
+<span class="font-body-md text-body-md">87.2 นิวตัน (N)</span>
+</div>
+</div>
+<!-- Step-by-Step Explanation Accordion / Card -->
+<div class="rounded-lg bg-surface-container p-space-md flex flex-col gap-space-sm">
+<div class="flex items-center gap-space-xs text-primary">
+<span class="material-symbols-outlined text-[20px]">lightbulb</span>
+<span class="font-label-lg text-label-lg font-bold">คำอธิบายขั้นตอนการแก้โจทย์อย่างละเอียด (Step-by-step Solution)</span>
+</div>
+<div class="font-body-sm text-body-sm text-on-surface space-y-2 leading-relaxed">
+<p>1. <strong>ตั้งสมการแรงสู่ศูนย์กลาง:</strong> \( \sum F_c = m \cdot a_c = \frac{m v^2}{r} \)</p>
+<p>2. <strong>แทนค่าทิศทางของแรง:</strong> ณ จุดต่ำสุด แรงตึงเชือก \( T \) มีทิศทางเข้าสู่ศูนย์กลาง และน้ำหนัก \( mg \) มีทิศออกจากศูนย์กลาง ดังนั้น \( T - mg = \frac{m v^2}{L} \)</p>
+<p>3. <strong>ย้ายข้างหาค่า \( T \):</strong> \( T = mg + \frac{m v^2}{L} = (2.0 \times 9.8) + \frac{2.0 \times 6.0^2}{1.5} \)</p>
+<p>4. <strong>คำนวณตัวเลข:</strong> \( T = 19.6 + 48.0 = 67.6 \, \text{N} \)</p>
+</div>
+</div>
+</div>
+<!-- Question Review Card 2 (Incorrect Answer with Visual Breakdown) -->
+<div class="rounded-xl bg-surface-container-lowest p-space-lg shadow-sm flex flex-col gap-space-md">
+<!-- Question Header Meta -->
+<div class="flex flex-wrap items-center justify-between gap-space-xs">
+<div class="flex items-center gap-space-sm">
+<span class="w-8 h-8 rounded-full bg-error text-on-error flex items-center justify-center font-label-lg text-label-lg font-bold">29</span>
+<span class="font-headline-sm text-headline-sm text-on-surface">ข้อที่ 29: ศักย์ไฟฟ้าและงานในการเคลื่อนย้ายประจุในสนามไฟฟ้าสถิต</span>
+</div>
+<div class="flex items-center gap-space-xs">
+<span class="px-space-sm py-1 rounded bg-error-container text-on-error-container font-label-sm text-label-sm font-semibold flex items-center gap-1">
+<span class="material-symbols-outlined text-[16px]">cancel</span>
+              ตอบไม่ถูกต้อง (0.0 คะแนน)
+            </span>
+<span class="px-space-sm py-1 rounded bg-surface-container font-label-sm text-label-sm text-on-surface-variant">เวลาที่ใช้: 2 นาที 40 วินาที</span>
+</div>
+</div>
+<!-- Question Prompt Body -->
+<p class="font-body-md text-body-md text-on-surface leading-relaxed">
+          แผ่นตัวนำขนานคู่หนึ่งวางห่างกันเป็นระยะ \( d = 0.05 \, \text{m} \) มีความต่างศักย์ระหว่างแผ่นคงที่เท่ากับ \( V = 200 \, \text{V} \) ถ้าต้องการเคลื่อนประจุทดสอบ \( q = -2.0 \times 10^{-6} \, \text{C} \) จากแผ่นขั้วบวกไปยังแผ่นขั้วลบ จะต้องใช้งานภายนอก \( (W_{\text{ext}}) \) ปริมาณเท่าใด?
+        </p>
+<!-- Diagram / Illustration Placeholder -->
+<div class="w-full flex flex-col sm:flex-row items-center gap-space-md p-space-md rounded-lg bg-surface-container-low">
+<img class="w-full sm:w-64 h-44 rounded-lg object-contain bg-surface-container-lowest shadow-xs flex-shrink-0" data-alt="Schematic vector illustration of two parallel conducting plates with uniform electric field lines pointing from positive to negative terminal, showing a negative test charge movement with labeled work and potential equations in clean graphic design." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCNd5oIVcdRDZbUBBN1lY3itVKQ3gRisEIT-GD_qQeFYFDciV-flb9q64V8jsE5fGeXkV-8SFl4vFb2dew5ljHJq3ZjHkEXAcm-WtrMIigOHK_UWGzy7wq29dI23aRpH2KsERLazVuqVZ14F77f1LnSbrBch2h3k9jtWtcxzMfZo13h6FRQHjcQXWWJAaR5e8DLQlc5g0nd_Ok2KZyUWylZIRXxKfrWlzvnH3qW1Fyg08sqGOPb8IZVCw"/>
+<div class="flex flex-col gap-space-xs">
+<span class="font-label-lg text-label-lg text-on-surface font-semibold">แผนภาพสนามไฟฟ้าระหว่างแผ่นตัวนำคู่ขนาน</span>
+<p class="font-body-sm text-body-sm text-on-surface-variant">ประจุลบตามธรรมชาติจะถูกดึงดูดเข้าหาแผ่นบวก การเคลื่อนย้ายประจุลบไปยังแผ่นลบจึงเป็นการเคลื่อนที่ต้านแรงสนามไฟฟ้า</p>
+</div>
+</div>
+<!-- Choices Breakdown -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-space-sm mt-space-xs">
+<!-- Choice A (Student's Incorrect Choice) -->
+<div class="p-space-md rounded-lg bg-error-container/40 text-on-surface flex items-start justify-between gap-space-sm">
+<div class="flex items-start gap-space-sm">
+<span class="w-6 h-6 rounded-full bg-error text-on-error flex-shrink-0 flex items-center justify-center font-label-sm text-label-sm font-bold">ก</span>
+<div class="flex flex-col">
+<span class="font-body-md text-body-md font-semibold text-on-surface">-4.0 × 10⁻⁴ จูล (J)</span>
+<span class="font-label-sm text-label-sm text-error font-semibold">คำตอบที่คุณเลือก (ผิดพลาด)</span>
+</div>
+</div>
+<span class="material-symbols-outlined text-error text-[22px]">close</span>
+</div>
+<!-- Choice B (The Correct Answer) -->
+<div class="p-space-md rounded-lg bg-secondary-container/40 text-on-surface flex items-start justify-between gap-space-sm">
+<div class="flex items-start gap-space-sm">
+<span class="w-6 h-6 rounded-full bg-secondary text-on-secondary flex-shrink-0 flex items-center justify-center font-label-sm text-label-sm font-bold">ข</span>
+<div class="flex flex-col">
+<span class="font-body-md text-body-md font-semibold text-on-surface">+4.0 × 10⁻⁴ จูล (J)</span>
+<span class="font-label-sm text-label-sm text-secondary font-semibold">เฉลยคำตอบที่ถูกต้อง</span>
+</div>
+</div>
+<span class="material-symbols-outlined text-secondary text-[22px]">check_circle</span>
+</div>
+<!-- Choice C -->
+<div class="p-space-md rounded-lg bg-surface-container-low text-on-surface-variant flex items-start gap-space-sm">
+<span class="w-6 h-6 rounded-full bg-surface-container flex-shrink-0 flex items-center justify-center font-label-sm text-label-sm">ค</span>
+<span class="font-body-md text-body-md">+2.0 × 10⁻⁵ จูล (J)</span>
+</div>
+<!-- Choice D -->
+<div class="p-space-md rounded-lg bg-surface-container-low text-on-surface-variant flex items-start gap-space-sm">
+<span class="w-6 h-6 rounded-full bg-surface-container flex-shrink-0 flex items-center justify-center font-label-sm text-label-sm">ง</span>
+<span class="font-body-md text-body-md">-2.0 × 10⁻⁵ จูล (J)</span>
+</div>
+</div>
+<!-- Remedial Analysis Box -->
+<div class="rounded-lg bg-surface-container p-space-md flex flex-col gap-space-sm">
+<div class="flex items-center gap-space-xs text-primary">
+<span class="material-symbols-outlined text-[20px]">psychology_alt</span>
+<span class="font-label-lg text-label-lg font-bold">วิเคราะห์จุดผิดพลาดและวิธีคิดที่ถูกต้อง (Remedial Insight)</span>
+</div>
+<div class="font-body-sm text-body-sm text-on-surface space-y-2 leading-relaxed">
+<p><strong>สาเหตุของความเข้าใจผิด:</strong> ผู้สอบสับสนเครื่องหมายของการทำงานภายนอก \( (W_{\text{ext}}) \) เทียบกับงานของสนามไฟฟ้า \( (W_{\text{field}}) \)</p>
+<p>1. <strong>นิยามของงานภายนอก:</strong> \( W_{\text{ext}} = \Delta U = q \Delta V = q (V_{\text{final}} - V_{\text{initial}}) \)</p>
+<p>2. <strong>แทนค่าความต่างศักย์:</strong> แผ่นลบมีศักย์ต่ำกว่าแผ่นบวก ดังนั้น \( V_{\text{final}} - V_{\text{initial}} = -200 \, \text{V} \)</p>
+<p>3. <strong>คำนวณ:</strong> \( W_{\text{ext}} = (-2.0 \times 10^{-6} \, \text{C}) \times (-200 \, \text{V}) = +4.0 \times 10^{-4} \, \text{J} \)</p>
+<p>เครื่องหมายเป็น <strong>บวก</strong> เนื่องจากแรงภายนอกต้องทำงานเพื่อผลักประจุลบไปยังบริเวณที่มีศักย์ไฟฟ้าต่ำกว่า (ต้านแรงผลักของสนาม)</p>
+</div>
+</div>
+</div>
+</div>
+<!-- Instructor Consultation & Support Callout Banner -->
+<div class="rounded-xl bg-surface-container-low p-space-lg shadow-sm flex flex-col md:flex-row items-center justify-between gap-space-md">
+<div class="flex items-center gap-space-md">
+<div class="w-12 h-12 rounded-full bg-primary flex-shrink-0 flex items-center justify-center text-on-primary">
+<span class="material-symbols-outlined text-[24px]">support_agent</span>
+</div>
+<div>
+<span class="font-headline-sm text-headline-sm text-on-surface">มีข้อสงสัยเกี่ยวกับผลคะแนนหรือแนวทางการเฉลย?</span>
+<p class="font-body-sm text-body-sm text-on-surface-variant">คุณสามารถส่งคำถามโดยตรงถึงอาจารย์ผู้สอนประจำวิชา พร้อมแนบรหัสข้อที่ต้องการปรึกษาได้ทันที</p>
+</div>
+</div>
+<div class="flex items-center gap-space-sm flex-shrink-0">
+<button class="px-space-md py-2.5 rounded-lg bg-surface-container hover:bg-surface-container-high text-on-surface font-label-lg text-label-lg flex items-center gap-space-xs transition-colors shadow-sm" type="button">
+<span class="material-symbols-outlined text-[18px]">history_edu</span>
+<span>ยื่นคำร้องขอตรวจซ้ำ</span>
+</button>
+<button class="px-space-md py-2.5 rounded-lg bg-primary hover:bg-primary-container text-on-primary font-label-lg text-label-lg flex items-center gap-space-xs transition-colors shadow-sm" type="button">
+<span class="material-symbols-outlined text-[18px]">chat</span>
+<span>ติดต่ออาจารย์ผู้สอน</span>
+</button>
+</div>
+</div>
+</div>
+</div></main><footer class="w-full bg-surface-container-lowest shadow-[0_1px_8px_rgba(0,0,0,0.04)] py-space-lg"><div class="w-full px-margin flex flex-col md:flex-row items-center justify-between gap-space-md"><div class="flex items-center gap-space-sm"><span class="font-headline-sm text-headline-sm text-primary">ExamFlow</span><span class="font-label-md text-label-md text-on-surface-variant">| แพลตฟอร์มการประเมินและการทดสอบมาตรฐานออนไลน์</span></div><div class="font-label-md text-label-md text-on-surface-variant">© 2025 ExamFlow Platform. All rights reserved. Google Workspace for Education Certified.</div></div></footer></body></html>

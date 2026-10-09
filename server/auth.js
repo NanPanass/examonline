@@ -6,7 +6,7 @@
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 
-const SECRET = process.env.JWT_SECRET || 'examhub-dev-secret-change-me-in-production';
+const SECRET = process.env.JWT_SECRET || 'examonline-dev-secret-change-me-in-production';
 
 function sign(user) {
   return jwt.sign({ uid: user.id, role: user.role, name: user.name, email: user.email }, SECRET, { expiresIn: '30d' });

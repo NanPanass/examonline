@@ -1,7 +1,7 @@
 {
-  "name": "examhub-server",
+  "name": "examonline",
   "version": "1.0.0",
-  "description": "ExamHub - ระบบสอบออนไลน์ พร้อม backend กลาง, auth จริง, โจทย์/คำตอบรูปภาพ, และห้องสอบสดแบบ Kahoot",
+  "description": "ExamOnline - ระบบสอบออนไลน์ (หน้าบ้านดีไซน์ Stitch) พร้อม backend กลาง, auth จริง, โจทย์/คำตอบรูปภาพ, และห้องสอบสดแบบ Kahoot",
   "main": "server/server.js",
   "scripts": {
     "start": "node --env-file=.env server/server.js",

@@ -1,4 +1,4 @@
-// server.js — ExamHub backend
+// server.js — ExamOnline backend (หน้าบ้านใช้ดีไซน์ Stitch / ระบบหลังบ้านและห้องสอบสดเดิมของ examonline)
 // - REST API สำหรับชุดข้อสอบ/ผู้ใช้/ผลสอบ (ฐานข้อมูลกลางบน Turso — ทุกคนเห็นชุดเดียวกัน)
 // - เฉลยข้อสอบไม่เคยถูกส่งไปฝั่ง client ระหว่างทำข้อสอบ ตรวจให้คะแนนที่ฝั่งเซิร์ฟเวอร์เท่านั้น
 // - Socket.io: ห้องสอบสดแบบ Kahoot (host เปิดห้อง ได้ PIN, เพื่อนพิมพ์ชื่อเล่น join, ตอบพร้อมกัน, กระดานคะแนนสด)
@@ -23,7 +23,7 @@ const jwt = require('jsonwebtoken');
 const db = require('./db');
 const { sign, hash, check, optionalAuth, requireAuth, requireAdmin } = require('./auth');
 
-const SECRET = process.env.JWT_SECRET || 'examhub-dev-secret-change-me-in-production';
+const SECRET = process.env.JWT_SECRET || 'examonline-dev-secret-change-me-in-production';
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: '*' } });
@@ -376,13 +376,22 @@ app.put('/api/admin/users/:id/role', requireAuth, requireAdmin, ah(async (req, r
 
 // ---------- Exam taking: answers never leave the server until grading ----------
 const sessions = new Map(); // sessionId -> { qs:[fullQuestion...], setId, setTitle, mode, startedAt }
+// แบ่งข้อสอบเป็น "ตอน/หมวด" ตาม section_note (ข้อที่มี section_note คือข้อแรกของตอนนั้น)
+// ใช้กับหน้าผลสอบ (สถิติรายหมวด + เรดาร์) — ถ้าชุดข้อสอบไม่มี section_note เลย section จะเป็น null
+function assignSections(all) {
+  let cur = all.some(q => q.section_note) ? 'ส่วนที่ไม่ระบุหัวข้อ' : null;
+  return all.map(q => {
+    if (q.section_note) cur = q.section_note.split('\n').map(x => x.trim()).filter(Boolean).join(' · ');
+    return { ...q, section: cur };
+  });
+}
 const sanitizeQ = q => ({ id: q.id, type: q.type, q: q.q, q_image: q.q_image, section_note: q.section_note || null, choices: q.choices ? JSON.parse(q.choices).map(c => ({ text: c.text, image: c.image })) : null });
 
 app.post('/api/exam/start', ah(async (req, res) => {
   const { setId, mode, format, shuffle } = req.body || {};
   const s = await db.prepare('SELECT * FROM sets WHERE id=?').get(setId);
   if (!s) return res.status(404).json({ error: 'ไม่พบชุดข้อสอบ' });
-  let qs = await db.prepare('SELECT * FROM questions WHERE set_id=? ORDER BY ord ASC').all(setId);
+  let qs = assignSections(await db.prepare('SELECT * FROM questions WHERE set_id=? ORDER BY ord ASC').all(setId));
   if (format === 'mc' || format === 'sa') qs = qs.filter(q => q.type === format);
   if (shuffle) qs = qs.slice().sort(() => Math.random() - 0.5);
   if (!qs.length) return res.status(400).json({ error: 'ชุดข้อสอบนี้ไม่มีข้อสอบในรูปแบบที่เลือก' });
@@ -413,10 +422,10 @@ app.post('/api/exam/:sid/check', (req, res) => {
 app.post('/api/exam/:sid/submit', ah(async (req, res) => {
   const sess = sessions.get(req.params.sid);
   if (!sess) return res.status(410).json({ error: 'เซสชันหมดอายุ กรุณาเริ่มทำข้อสอบใหม่' });
-  const { answers = {}, sec = 0, away = 0, guestName } = req.body || {};
+  const { answers = {}, qtimes = {}, sec = 0, away = 0, guestName } = req.body || {};
   const detail = sess.qs.map(q => {
     const a = answers[q.id];
-    return { questionId: q.id, q: q.q, type: q.type, choices: q.choices ? JSON.parse(q.choices) : null, given: a ?? null, correct: gradeOne(q, a), rightAnswer: rightAnswerText(q), explanation: q.explanation || '' };
+    return { questionId: q.id, q: q.q, q_image: q.q_image || null, section: q.section || null, sec: Math.max(0, Math.min(86400, Math.round(+qtimes[q.id] || 0))), type: q.type, choices: q.choices ? JSON.parse(q.choices) : null, given: a ?? null, correct: gradeOne(q, a), rightAnswer: rightAnswerText(q), rightIndex: q.type === 'mc' ? JSON.parse(q.answer) : null, explanation: q.explanation || '' };
   });
   const score = detail.filter(d => d.correct).length;
   const result = {
@@ -440,7 +449,17 @@ app.get('/api/results', ah(async (req, res) => {
 app.get('/api/results/:id', ah(async (req, res) => {
   const r = await db.prepare('SELECT * FROM results WHERE id=?').get(req.params.id);
   if (!r) return res.status(404).json({ error: 'ไม่พบผลสอบ' });
-  res.json({ id: r.id, title: r.set_title, score: r.score, total: r.total, mode: r.mode, sec: r.sec, away: r.away, date: r.created_at, detail: JSON.parse(r.detail) });
+  const detail = JSON.parse(r.detail);
+  // สถิติเทียบกับผู้สอบคนอื่นในชุดเดียวกัน (นับเฉพาะโหมดสอบจริง และไม่นับผลห้องสอบสดที่ detail ไม่ใช่ array)
+  let stats = null;
+  if (Array.isArray(detail) && r.mode === 'm' && r.set_id && r.total > 0) {
+    const a = await db.prepare("SELECT COUNT(*) n, AVG(sec) avg_sec, AVG(score*1.0/total) avg_pct, MAX(score*1.0/total) max_pct, SUM(CASE WHEN score*1.0/total > @pct + 1e-9 THEN 1 ELSE 0 END) higher FROM results WHERE set_id=@sid AND mode='m' AND total>0 AND detail LIKE '[%'").get({ pct: r.score / r.total, sid: r.set_id });
+    const st = await db.prepare('SELECT time FROM sets WHERE id=?').get(r.set_id);
+    stats = { rank: (a.higher || 0) + 1, participants: a.n, avg_pct: a.avg_pct, max_pct: a.max_pct, avg_sec: a.avg_sec, time_limit: st ? st.time : 0 };
+  }
+  let examinee = r.guest_name || null;
+  if (r.user_id) { const u = await db.prepare('SELECT name FROM users WHERE id=?').get(r.user_id); if (u) examinee = u.name; }
+  res.json({ id: r.id, set_id: r.set_id, examinee, title: r.set_title, score: r.score, total: r.total, mode: r.mode, sec: r.sec, away: r.away, date: r.created_at, detail, stats });
 }));
 
 // =====================================================================
@@ -580,7 +599,7 @@ const PORT = process.env.PORT || 3000;
 // จะ import { app } จากไฟล์นี้ไปใช้กับ Vercel Functions แทนโดยไม่เรียก listen()
 if (require.main === module) {
   db.ready
-    .then(() => server.listen(PORT, () => console.log(`ExamHub server running on http://localhost:${PORT}`)))
+    .then(() => server.listen(PORT, () => console.log(`ExamOnline server running on http://localhost:${PORT}`)))
     .catch(err => { console.error('เชื่อมต่อฐานข้อมูล Turso ไม่สำเร็จ:', err); process.exit(1); });
 }
 
