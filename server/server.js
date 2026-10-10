@@ -194,6 +194,7 @@ const IMPORT_PROMPT = `คุณคือผู้ช่วยแยกข้อ
   ตัวเลือกที่ 3 (index 2) = 3 = c = ค
   ตัวเลือกที่ 4 (index 3) = 4 = d = ง
   (ถ้ามีตัวเลือกที่ 5 ขึ้นไปก็ไล่ต่อตามลำดับตัวอักษร/ตัวเลขเดียวกัน)
+- รูปแบบรายการเฉลยที่อาจพบ (ต้องรองรับทุกแบบ): \"1) ข. ชีต้า\" , \"1. ชีต้า\" , \"1. ข\" , \"ข้อ 1 ตอบ ข\" , \"1 = ข\" , \"1-ข\" , \"(1) ข\" , ตารางหรือหลายข้อต่อบรรทัด — ถ้าเฉลยมีทั้งตัวอักษรและข้อความคำตอบให้ตรวจว่าสองอย่างตรงกับตัวเลือกเดียวกันหรือไม่ ถ้าเฉลยมีแต่ข้อความคำตอบให้หาตัวเลือกที่ข้อความตรงกันแล้วใช้ตำแหน่งของตัวเลือกนั้น
 - ถ้าหน้าเฉลยเขียนเป็นคำตอบเต็มแทนตัวอักษร (เช่นข้ออัตนัย) ให้จับคู่เลขข้อแล้วใช้ข้อความคำตอบนั้นตรงๆ
 - ถ้าไม่มีเฉลยระบุไว้เลยทั้งเอกสาร ให้เลือกคำตอบที่ถูกต้องที่สุดตามความรู้ทั่วไป
 - คงภาษาของเอกสารต้นฉบับ ไม่แปล
@@ -237,7 +238,9 @@ const ANSWER_LETTERS = 'กขคงจฉชซฌ';
 // หัวข้อหน้าเฉลยแยก: รองรับ "เฉลย", "เฉลยคำตอบ", "เฉลยข้อสอบ", "คำตอบ", "Answer", "Answer Key"
 // และยอมให้มีคำอธิบายต่อท้ายในวงเล็บ เช่น "เฉลยคำตอบ (Answer Key)" หรือ "เฉลย (Answer Key)"
 // (ต้องแยกจาก "เฉลย ข" แบบติดโจทย์ — เคสนั้นมีตัวอักษรเฉลยต่อท้ายนอกวงเล็บ จะไม่เข้าเงื่อนไขนี้)
-const ANSWER_KEY_HEADER_RE = /^(?:เฉลยคำตอบ|เฉลยข้อสอบ|เฉลย|คำตอบ|answer\s*key|answer)\s*(?:\(.*\))?\s*[:：]?\s*$/i;
+const ANSWER_KEY_HEADER_RE = /^[\s#*=\-–—_]*(?:เฉลยคำตอบ|เฉลยข้อสอบ|เฉลยละเอียด|เฉลยแบบฝึกหัด|เฉลย|คำตอบที่ถูกต้อง|คำตอบ|answer\s*keys?|answer\s*sheet|answers|answer|key)\s*(?:\(.*\))?\s*(?:ชุดที่\s*\d+)?\s*[:：]?\s*[#*=\-–—_]*\s*$/i;
+// หัวข้อเฉลยที่มีรายการเฉลยต่อท้ายบรรทัดเดียวกัน เช่น "เฉลย: 1) ข 2) ก 3) ค" หรือ "Answer Key: 1. B 2. A"
+const ANSWER_KEY_INLINE_RE = /^[\s#*=\-–—_]*(?:เฉลยคำตอบ|เฉลยข้อสอบ|เฉลยละเอียด|เฉลยแบบฝึกหัด|เฉลย|คำตอบ|answer\s*keys?|answers|answer|key)\s*(?:\(.*?\))?\s*[:：]\s*((?:ข้อ\s*)?\(?\d{1,3}\s*[.)\]:：=\-–,\s].*)$/i;
 function isAnswerKeyHeader(line) { return ANSWER_KEY_HEADER_RE.test(line); }
 // แปลงโทเคนเฉลย (ก/ข/ค/ง, A/B/C/D, หรือเลขตำแหน่ง 1/2/3/4) เป็น index เริ่มที่ 0 ตามตำแหน่งเดียวกันเสมอ:
 // 1 = a = ก = ตัวเลือกที่ 1 (index 0), 2 = b = ข = ตัวเลือกที่ 2 (index 1), 3 = c = ค = ตัวเลือกที่ 3 (index 2), 4 = d = ง = ตัวเลือกที่ 4 (index 3) ฯลฯ
@@ -247,13 +250,132 @@ function answerTokenToIndex(tok, maxLen) {
   let idx = ANSWER_LETTERS.indexOf(tok); if (idx < 0) idx = 'abcdefgh'.indexOf(tok.toLowerCase());
   return idx >= 0 && idx < maxLen ? idx : -1;
 }
-// แยกคู่ "เลขข้อ -> โทเคนเฉลย" จากข้อความหน้าเฉลย รองรับหลายข้อต่อบรรทัด เช่น "1) ก  2) ง  3) ค" หรือตาราง "1. A  2. A  3. C"
-function extractAnswerKeyMap(text) {
-  const map = {};
-  const re = /(\d{1,3})\s*[.)\-:：]?\s*([A-Ha-h]|[ก-ฌ]|[1-8])(?=\s|,|$|\d)/g;
-  let mm;
-  while ((mm = re.exec(text))) { if (!(mm[1] in map)) map[mm[1]] = mm[2]; }
-  return map;
+// ===== ระบบอ่านเฉลยท้ายไฟล์ (Answer Key) =====
+// รูปแบบรายการเฉลยที่รองรับ (เลขข้อ + ตัวอักษร และ/หรือข้อความคำตอบ):
+//   "1) ข. ชีต้า"  "1. ข ชีต้า"  "1. ชีต้า"  "1. ข"  "(1) ข"  "ข้อ 1 ตอบ ข"  "1 = ข"  "1-ข"  "1:ข"  "1.ข."  "1) (ข)"  "1.b"
+//   หลายข้อต่อบรรทัด/ตาราง: "1) ก  2) ง  3) ค" , "| 1 | ข |" , "1,ข" , เลขไทย ๑. ข  ,  หรือเรียงตัวอักษรล้วนไม่มีเลขข้อ "ก ข ค ง ก"
+const THAI_DIGITS = '๐๑๒๓๔๕๖๗๘๙';
+const toArabicDigits = s => String(s).replace(/[๐-๙]/g, d => THAI_DIGITS.indexOf(d));
+// ปรับข้อความให้เทียบกันได้: ตัวพิมพ์เล็ก ตัดช่องว่าง/เครื่องหมายวรรคตอน/zero-width และแปลงเลขไทยเป็นอารบิก
+const normAnsText = s => toArabicDigits(s).toLowerCase().replace(/[\u200b-\u200d\ufeff]/g, '').replace(/[\s.,;:!?'"“”‘’()\[\]{}\-–—_\/\\]/g, '');
+const keyChoiceText = c => (c && typeof c === 'object') ? (c.text || '') : String(c ?? '');
+
+// แยกรายการเฉลยเป็น { เลขข้อ: ข้อความหลังเลขข้อ (rest) } — rest ยังไม่ตีความ ปล่อยให้ resolveKeyEntry เทียบกับตัวเลือกของข้อนั้นอีกที
+function parseAnswerKey(text) {
+  const entries = {};
+  // ใช้ "เลขข้อ" ตามลำดับเพิ่มขึ้น (prev+1) เป็นตัวกันเลขที่ปนอยู่ในคำตอบ เช่น "1. 2 ดวง  2. 3 ดวง"
+  const markerRe = /(?:^|[\s,;])(?:ข้อ\s*)?\(?(\d{1,3})\s*(?:[.)\]:：=\-–]|,(?=\s*[ก-ฌA-Ha-h](?:[.)\]\s,]|$))|\s(?=[ก-ฌA-Ha-h](?:[.)\]:：\s,]|$))|\s+(?=(?:ตอบ|คำตอบ|ans(?:wer)?\b)))/g;
+  const cleanRest = r => r.replace(/^\s*(?:ตอบ|คำตอบ|ans(?:wer)?)\s*[:：]?\s*(?:ข้อ\s*(?=[ก-ฌA-Ha-h1-8](?:[.)\s]|$)))?/i, '').replace(/[\s,;]+$/, '').trim();
+  let prev = 0, pending = null;
+  const lines = toArabicDigits(String(text)).replace(/\r/g, '').split('\n').map(l => l.replace(/[|\t]+/g, '  '));
+  for (const line of lines) {
+    if (!line.trim()) continue;
+    const marks = []; let m; markerRe.lastIndex = 0;
+    while ((m = markerRe.exec(line))) {
+      const n = +m[1], numStart = m.index + m[0].indexOf(m[1]) - (/\(\s*$/.test(m[0].slice(0, m[0].indexOf(m[1]))) ? 1 : 0);
+      const isFirst = !line.slice(0, m.index + (/^[\s,;]/.test(m[0]) ? 1 : 0)).trim();
+      if (n in entries) continue;
+      if (isFirst || n === prev + 1) { marks.push({ n, start: Math.max(0, numStart), end: markerRe.lastIndex }); prev = n; }
+    }
+    if (!marks.length) {
+      // บรรทัดต่อเนื่องของเลขข้อที่ว่างอยู่ เช่น "1." แล้วขึ้นบรรทัดใหม่ค่อยตามด้วยคำตอบ
+      if (pending !== null && !entries[pending]) entries[pending] = cleanRest(line);
+      pending = null; continue;
+    }
+    pending = null;
+    marks.forEach((mk, j) => {
+      const rest = cleanRest(line.slice(mk.end, j + 1 < marks.length ? marks[j + 1].start : line.length));
+      entries[mk.n] = rest;
+      if (!rest) pending = mk.n;
+    });
+  }
+  if (!Object.keys(entries).length) {
+    // ไม่มีเลขข้อเลย (เช่น "ก ข ค ง ก") ใช้ตัวอักษรเรียงตามลำดับเป็นข้อ 1,2,3,...
+    const toks = [];
+    for (const line of lines) {
+      const parts = line.replace(/[,;]/g, ' ').trim().split(/\s+/).filter(Boolean);
+      if (parts.length && parts.every(t => /^\(?[ก-ฌA-Ha-h][.)]?$/.test(t))) parts.forEach(t => toks.push(t.replace(/[().]/g, '')));
+    }
+    if (toks.length >= 2) toks.forEach((t, i) => { entries[i + 1] = t; });
+  }
+  return entries;
+}
+
+// ตีความรายการเฉลยหนึ่งข้อกับ "ตัวเลือกของข้อนั้น" คืน { index, how, confidence:'high'|'medium'|'low', note } หรือ null
+//  ลำดับ: (1) ข้อความเฉลยตรงกับตัวเลือกทั้งก้อน → (2) ตัวอักษร/เลข (+ข้อความตามหลัง ตรวจซ้ำกับตัวเลือก) → (3) ข้อความล้วนแบบใกล้เคียง
+function resolveKeyEntry(rest, choices) {
+  const n = (choices || []).length;
+  rest = String(rest || '').trim();
+  if (!n || !rest) return null;
+  const norm = choices.map(c => normAnsText(keyChoiceText(c)));
+  const exactIdx = t => { const k = normAnsText(t); if (!k) return []; return norm.reduce((a, c, i) => (c === k ? a.concat(i) : a), []); };
+  const fuzzyIdx = t => {
+    const k = normAnsText(t); if (k.length < 2) return [];
+    const hit = norm.reduce((a, c, i) => (c.length >= 2 && (c.includes(k) || k.includes(c)) ? a.concat(i) : a), []);
+    return hit;
+  };
+  const L = i => ANSWER_LETTERS[i] || String(i + 1);
+  const tm = rest.match(/^[(\[]?([ก-ฌ]|[A-Ha-h]|[1-8])(?:[.)\]:：\-–]+(?!\d)|(?=\s|$))\s*(.*)$/s);
+  const token = tm ? tm[1] : '', tail = tm ? tm[2].trim() : '';
+  const posIdx = token ? answerTokenToIndex(token, n) : -1;
+
+  // (1) ทั้งก้อนเป็นข้อความตัวเลือก
+  const whole = exactIdx(rest);
+  if (whole.length === 1) {
+    const ambiguous = /^[1-8]$/.test(rest) && posIdx >= 0 && posIdx !== whole[0];
+    return { index: whole[0], how: 'text', confidence: ambiguous ? 'low' : 'high',
+      note: ambiguous ? `เลข "${rest}" ตรงกับทั้งข้อความตัวเลือก ${L(whole[0])} และลำดับตัวเลือก ${L(posIdx)} — เลือกตามข้อความ โปรดตรวจ` : '' };
+  }
+  // (2) มีตัวอักษร/เลขนำหน้า
+  if (posIdx >= 0) {
+    if (!tail) return { index: posIdx, how: 'letter', confidence: 'high', note: '' };
+    const ex = exactIdx(tail), fz = ex.length ? ex : fuzzyIdx(tail);
+    if (fz.length === 1) {
+      if (fz[0] === posIdx) return { index: posIdx, how: 'letter+text', confidence: 'high', note: '' };
+      if (ex.length === 1) return { index: fz[0], how: 'text(conflict)', confidence: 'low',
+        note: `ตัวอักษร ${token} ไม่ตรงกับข้อความ "${tail}" (ตรงกับตัวเลือก ${L(fz[0])}) — เลือกตามข้อความ โปรดตรวจ` };
+    }
+    return { index: posIdx, how: 'letter', confidence: 'medium', note: `ไม่พบข้อความ "${tail}" ในตัวเลือก ใช้ตามตัวอักษร ${token}` };
+  }
+  // (3) ข้อความล้วนแบบใกล้เคียง หรือข้อความหลังตัวอักษรที่เกินจำนวนตัวเลือก
+  for (const t of tail ? [rest, tail] : [rest]) {
+    const ex = exactIdx(t); if (ex.length === 1) return { index: ex[0], how: 'text', confidence: 'high', note: '' };
+    const fz = fuzzyIdx(t); if (fz.length === 1) return { index: fz[0], how: 'text~', confidence: 'medium', note: `จับคู่ข้อความ "${t}" แบบใกล้เคียง โปรดตรวจ` };
+  }
+  return null;
+}
+
+// หาจุดเริ่มหน้าเฉลยท้ายไฟล์ (เลือกหัวข้อเฉลยตัวสุดท้ายที่ตามด้วยรายการเฉลยที่อ่านได้จริง) คืน { idx, body } หรือ null
+function findAnswerKeyStart(allLines) {
+  const cands = [];
+  allLines.forEach((l, i) => {
+    if (isAnswerKeyHeader(l)) cands.push({ idx: i, inline: '' });
+    else { const m = l.match(ANSWER_KEY_INLINE_RE); if (m) cands.push({ idx: i, inline: m[1] }); }
+  });
+  for (let k = cands.length - 1; k >= 0; k--) {
+    const { idx, inline } = cands[k];
+    const body = (inline ? inline + '\n' : '') + allLines.slice(idx + 1).join('\n');
+    if (Object.keys(parseAnswerKey(body)).length) return { idx, body };
+  }
+  return null;
+}
+// ใช้เฉลยท้ายไฟล์ตรวจ/แก้คำตอบของรายการที่ AI แยกมา (เฉพาะกรณีจำนวนข้อตรงกับเลขข้อสุดท้ายในเฉลย กันจับคู่ผิดข้อ) คืนจำนวนข้อที่ถูกแก้
+function applyKeyToList(list, text) {
+  const start = findAnswerKeyStart(String(text).split('\n').map(l => l.trim()));
+  if (!start) return { changed: 0, checked: 0 };
+  const entries = parseAnswerKey(start.body), nums = Object.keys(entries).map(Number);
+  if (!nums.length || Math.max(...nums) !== list.length) return { changed: 0, checked: 0 };
+  let changed = 0, checked = 0;
+  list.forEach((it, i) => {
+    const rest = entries[i + 1]; if (!it || rest == null || rest === '') return;
+    if (it.t === 'mc' && Array.isArray(it.ch)) {
+      const r = resolveKeyEntry(rest, it.ch); if (!r) return;
+      checked++;
+      if (r.index !== it.a) { it.a = r.index; changed++; }
+      if (r.note) it.keyNote = r.note;
+    } else if (it.t === 'sa' && (!Array.isArray(it.a) || !it.a.length)) { it.a = [rest]; changed++; }
+  });
+  return { changed, checked };
 }
 
 function equalsFallback(text) {
@@ -304,9 +426,9 @@ function heuristicExtract(text) {
   const allLines = text.split('\n').map(l => l.trim());
   // ----- แยกหน้าเฉลยแยกท้ายเอกสารออกก่อน (บรรทัดที่เป็นหัวข้อ "เฉลย"/"คำตอบ" ล้วนๆ ไม่มีคำตอบติดอยู่ในบรรทัดเดียวกัน) -----
   // ต้องตัดออกจากส่วนที่จะพาร์สเป็นโจทย์ก่อน ไม่งั้นเนื้อหาในหน้าเฉลย (เช่น "1. ข  2. ก") จะถูกเข้าใจผิดว่าเป็นข้อสอบข้อใหม่
-  const keyHeaderIdx = allLines.findIndex(isAnswerKeyHeader);
-  const lines = keyHeaderIdx >= 0 ? allLines.slice(0, keyHeaderIdx) : allLines;
-  const keyText = keyHeaderIdx >= 0 ? allLines.slice(keyHeaderIdx + 1).join('\n') : '';
+  const keyStart = findAnswerKeyStart(allLines);
+  const lines = keyStart ? allLines.slice(0, keyStart.idx) : allLines;
+  const keyText = keyStart ? keyStart.body : '';
 
   const out = [];
   let cur = null, pendingNote = [];
@@ -320,7 +442,7 @@ function heuristicExtract(text) {
         // a:-1 แปลว่ายังไม่เจอเฉลยติดกับโจทย์ — รอดูว่ามีหน้าเฉลยแยกท้ายเอกสารไหมก่อนค่อย fallback เป็นตัวเลือกแรก
         // (ระวัง: ''.indexOf('') คืนค่า 0 ไม่ใช่ -1 ต้องเช็ค cur.ans ว่ามีค่าจริงก่อนค่อยหา index)
         let idx = -1;
-        if (cur.ans) { const k = cur.ans.replace(/[().\s]/g, '').charAt(0); idx = T.indexOf(k); if (idx < 0) idx = 'abcdefgh'.indexOf(k.toLowerCase()); }
+        if (cur.ans) { const r = resolveKeyEntry(cur.ans, cur.choices); if (r) idx = r.index; }
         item = { t: 'mc', q, ch: cur.choices, a: idx >= 0 && idx < cur.choices.length ? idx : -1, ex: '', num: cur.num };
       } else if (cur.ans) item = { t: 'sa', q, a: cur.ans.split(/\s*[\/|]\s*/).filter(Boolean), ex: '', num: cur.num };
       else if (eq) item = { t: 'sa', q: eq[1].trim(), a: eq[2].split(/\s*[\/|]\s*/).filter(Boolean), ex: '', num: cur.num };
@@ -390,18 +512,12 @@ function heuristicExtract(text) {
 
   // ----- จับคู่ "เลขข้อ" ในหน้าเฉลยแยก กับ "ตัวอักษรเฉลย" (ก ข ค ง / A B C D / เลขตำแหน่ง) หรือข้อความคำตอบเต็มสำหรับข้ออัตนัย -----
   if (keyText) {
-    const letterMap = extractAnswerKeyMap(keyText);
-    const textMap = {};
-    for (const l of keyText.split('\n')) {
-      const mt = l.trim().match(/^(\d{1,3})\s*[.)\-:：]\s*(.+)$/);
-      if (mt && !(mt[1] in textMap)) textMap[mt[1]] = mt[2].trim();
-    }
+    const keyEntries = parseAnswerKey(keyText);
     for (const item of out) {
-      if (item.t === 'mc' && item.a === -1 && item.num && letterMap[item.num]) {
-        const idx = answerTokenToIndex(letterMap[item.num], item.ch.length);
-        if (idx >= 0) item.a = idx;
-      }
-      if (item.t === 'sa' && !item.a.length && item.num && textMap[item.num]) item.a = [textMap[item.num]];
+      const rest = item.num != null ? keyEntries[item.num] : undefined;
+      if (!rest) continue;
+      if (item.t === 'mc' && item.a === -1) { const r = resolveKeyEntry(rest, item.ch); if (r) item.a = r.index; }
+      if (item.t === 'sa' && !item.a.length) item.a = [rest];
     }
   }
   // ข้อปรนัยที่สุดท้ายแล้วก็ยังไม่เจอเฉลยเลย (ไม่มีทั้งแบบติดโจทย์และหน้าเฉลยแยก) ให้ default เป็นตัวเลือกแรกไว้กันระบบพัง
@@ -416,7 +532,7 @@ app.post('/api/admin/import', requireAuth, requireAdmin, importUpload.single('fi
   if (!req.file) return res.status(400).json({ error: 'ไม่พบไฟล์ที่อัปโหลด' });
   const ext = path.extname(req.file.originalname || '').toLowerCase();
   const buf = req.file.buffer;
-  let list, source;
+  let list, source, keySrcText = '';
   try {
     if (ext === '.pdf' || IMAGE_MEDIA[ext]) {
       list = await callClaudeExtract({ fileBuffer: buf, mediaType: ext === '.pdf' ? 'application/pdf' : IMAGE_MEDIA[ext] });
@@ -430,12 +546,18 @@ app.post('/api/admin/import', requireAuth, requireAdmin, importUpload.single('fi
       } else if (ext === '.txt' || ext === '.md') text = buf.toString('utf-8');
       else return res.status(400).json({ error: 'ไม่รองรับไฟล์นามสกุลนี้ รองรับ .docx .xlsx .xls .csv .pdf .jpg .png .gif .webp .txt .md' });
       if (!text.trim()) return res.status(400).json({ error: 'ไม่พบข้อความในไฟล์นี้' });
+      keySrcText = text;
       try { list = await callClaudeExtract({ text }); source = 'AI'; }
       catch (e) { if (e.code !== 'NO_API_KEY') throw e; list = heuristicExtract(text); source = 'ตัวแยกอัตโนมัติ (ยังไม่ได้ตั้งค่า AI — ผลลัพธ์อาจไม่แม่นยำเท่า)'; }
     }
   } catch (e) {
     if (e.code === 'NO_API_KEY') return res.status(400).json({ error: 'ไฟล์นี้ต้องใช้ AI ช่วยอ่าน (รูปภาพ/PDF) แต่เซิร์ฟเวอร์ยังไม่ได้ตั้งค่า ANTHROPIC_API_KEY กรุณาตั้งค่าก่อนใช้งาน' });
     throw e;
+  }
+  // ตรวจทานซ้ำด้วยหน้าเฉลยท้ายไฟล์ (เฉพาะไฟล์ข้อความ): ถ้า AI จับคู่ผิด ให้ใช้ตัวอ่านเฉลยแบบกำหนดแน่นอนแก้ทับ
+  if (keySrcText && Array.isArray(list)) {
+    const kr = applyKeyToList(list, keySrcText);
+    if (kr.checked) source += ` + ตรวจกับเฉลยท้ายไฟล์ ${kr.checked} ข้อ${kr.changed ? ` (แก้ ${kr.changed} ข้อ)` : ''}`;
   }
   list = (list || []).filter(x => x && x.q && (
     x.t === 'mc' ? Array.isArray(x.ch) && x.ch.length >= 2 && Number.isInteger(x.a) && x.a >= 0 && x.a < x.ch.length
@@ -472,18 +594,24 @@ app.post('/api/admin/sets/:id/questions/bulk', requireAuth, requireAdmin, ah(asy
 app.post('/api/admin/sets/:id/answers/preview', requireAuth, requireAdmin, ah(async (req, res) => {
   const text = String(req.body.text || '');
   if (!text.trim()) return res.status(400).json({ error: 'กรุณาวางข้อความเฉลย' });
-  const keyMap = extractAnswerKeyMap(text);
-  if (!Object.keys(keyMap).length) return res.status(400).json({ error: 'ไม่พบรูปแบบเฉลยที่อ่านได้ ตัวอย่างที่รองรับ: "1) ก 2) ข 3) ค" หรือ "1. A 2. B 3. C"' });
+  // ถ้าผู้ใช้วางทั้งหน้า (มีหัวข้อ "เฉลย"/"Answer Key" นำหน้า) ให้ตัดเอาเฉพาะส่วนหลังหัวข้อ
+  const ks = findAnswerKeyStart(text.split('\n').map(l => l.trim()));
+  const keyMap = parseAnswerKey(ks ? ks.body : text);
+  if (!Object.keys(keyMap).length) return res.status(400).json({ error: 'ไม่พบรูปแบบเฉลยที่อ่านได้ ตัวอย่างที่รองรับ: "1) ข" , "1. ข. ชีต้า" , "1. ชีต้า" , "1) ก 2) ข 3) ค" , "1. A 2. B 3. C"' });
   const rows = await db.prepare('SELECT * FROM questions WHERE set_id=? ORDER BY ord ASC').all(req.params.id);
   const preview = rows.map((q, i) => {
     const pos = String(i + 1), token = keyMap[pos] || null;
     const choices = q.choices ? JSON.parse(q.choices) : null;
     const currentIndex = q.type === 'mc' ? JSON.parse(q.answer) : null;
-    let proposedIndex = null, ok = false, reason = '';
+    let proposedIndex = null, ok = false, reason = '', note = '', confidence = null;
     if (q.type !== 'mc') reason = 'ไม่ใช่ข้อปรนัย ข้ามให้อัตโนมัติ';
     else if (!token) reason = 'ไม่พบเฉลยสำหรับลำดับนี้ในข้อความที่วาง';
-    else { const idx = answerTokenToIndex(token, choices.length); if (idx < 0) reason = 'ตัวอักษร/เลขเฉลยไม่ตรงกับจำนวนตัวเลือกที่มี'; else { proposedIndex = idx; ok = true; } }
-    return { id: q.id, position: i + 1, q: q.q, type: q.type, choices, currentIndex, token, proposedIndex, ok, reason, changed: ok && proposedIndex !== currentIndex };
+    else {
+      const r = resolveKeyEntry(token, choices);
+      if (!r) reason = 'เฉลยไม่ตรงกับตัวอักษร/ข้อความของตัวเลือกที่มี';
+      else { proposedIndex = r.index; ok = true; note = r.note; confidence = r.confidence; }
+    }
+    return { id: q.id, position: i + 1, q: q.q, type: q.type, choices, currentIndex, token, proposedIndex, ok, reason, note, confidence, changed: ok && proposedIndex !== currentIndex };
   });
   res.json({ total: rows.length, matched: preview.filter(p => p.ok).length, preview });
 }));
