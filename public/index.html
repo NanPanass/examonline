@@ -1,449 +1,331 @@
-<!DOCTYPE html>
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ExamHub – ระบบสอบออนไลน์</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@400;500;600;700&family=Noto+Serif+Thai:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#EEEBE1;--card:#F8F6EE;--ink:#2E3344;--mut:#767B93;--pri:#3C5A96;--pri2:#2A4478;--soft:#E8EAF1;--line:#DDD5BE;--ok:#3E8161;--okb:#DFEFE6;--bad:#AD5252;--badb:#F4E1DF;--warn:#A67C28;--gold:#93753C;--goldb:#F0E7CE;--onpri:#FBF8EE;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#161C30;--card:#1D2540;--ink:#E3DFCB;--mut:#9CA3BC;--pri:#8298CE;--pri2:#9FB0DE;--soft:#242D52;--line:#303C68;--ok:#68C093;--okb:#1E3A32;--bad:#DD8888;--badb:#3E2830;--warn:#DDAE57;--gold:#C9AD70;--goldb:#2C281F;--onpri:#0E1428}}
+:root[data-theme="dark"]{--bg:#161C30;--card:#1D2540;--ink:#E3DFCB;--mut:#9CA3BC;--pri:#8298CE;--pri2:#9FB0DE;--soft:#242D52;--line:#303C68;--ok:#68C093;--okb:#1E3A32;--bad:#DD8888;--badb:#3E2830;--warn:#DDAE57;--gold:#C9AD70;--goldb:#2C281F;--onpri:#0E1428}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.65 'Noto Sans Thai',system-ui,-apple-system,'Segoe UI',sans-serif}
+main{max-width:1080px;margin:0 auto;padding:24px 20px 70px}
+h1,h2,h3{line-height:1.35;margin:.2em 0 .4em;font-family:'Noto Serif Thai',Georgia,serif;font-weight:600}
+.mut{color:var(--mut)}.sm{font-size:.86rem}
+header{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);border-bottom:1px solid var(--line)}
+.hd{max-width:1080px;margin:auto;padding:10px 20px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:9px;font-weight:700;font-size:1.15rem;color:var(--pri);cursor:pointer;font-family:'Noto Serif Thai',Georgia,serif}
+.brand i{width:32px;height:32px;border-radius:9px;background:linear-gradient(135deg,var(--pri),var(--pri2));color:var(--onpri);display:grid;place-items:center;font-style:normal;border:1px solid var(--gold);font-family:Georgia,serif}
+.brand.big{justify-content:center;font-size:1.4rem;margin-bottom:10px}
+nav{display:flex;gap:4px;flex:1;flex-wrap:wrap}
+.nv{border:0;background:none;color:var(--mut);font:inherit;padding:7px 14px;border-radius:10px;cursor:pointer}
+.nv.on{background:var(--soft);color:var(--pri);font-weight:600;box-shadow:inset 0 -2px 0 var(--gold)}
+.usr{display:flex;align-items:center;gap:8px}
+@media(max-width:480px){.hd{padding:8px 14px;gap:8px}.brand{font-size:1rem}nav{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}nav::-webkit-scrollbar{display:none}.nv{padding:6px 11px;font-size:.85rem;white-space:nowrap;flex:none}.usr .sm{display:none}}
+.av{width:30px;height:30px;border-radius:50%;background:var(--pri);color:var(--onpri);display:grid;place-items:center;font-weight:600}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:20px;box-shadow:0 1px 2px rgba(30,42,74,.05)}
+.btn{font:inherit;border:1px solid var(--line);background:var(--card);color:var(--ink);padding:9px 18px;border-radius:11px;cursor:pointer;font-weight:500}
+.btn.pri{background:var(--pri);color:var(--onpri);border-color:var(--pri);box-shadow:0 2px 8px rgba(35,60,120,.25)}
+.btn.pri:hover{background:var(--pri2)}
+.btn.ghost{background:none}.btn.sm{padding:5px 12px;font-size:.85rem}
+.btn.del{color:var(--bad)}
+.btn.live{background:var(--gold);color:var(--onpri);border-color:var(--gold)}
+.btn:disabled{opacity:.45;cursor:default}
+.chips{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0 20px}
+.chip{border:1px solid var(--line);background:var(--card);color:var(--ink);font:inherit;padding:6px 16px;border-radius:99px;cursor:pointer}
+.chip.on{background:var(--pri);color:var(--onpri);border-color:var(--pri)}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:16px}
+.set{display:flex;flex-direction:column;gap:6px}.set .setbtns{margin-top:auto;display:flex;gap:8px;flex-wrap:wrap}
+.tag{align-self:flex-start;background:var(--goldb);color:var(--gold);font-size:.78rem;font-weight:600;padding:2px 10px;border-radius:99px}
+.meta{font-size:.88rem;color:var(--mut);margin:6px 0 10px}
+.inp,select,textarea{width:100%;font:inherit;color:var(--ink);background:var(--card);border:1.5px solid var(--line);border-radius:11px;padding:10px 13px;margin:4px 0 12px}
+.inp:focus,select:focus,textarea:focus{outline:none;border-color:var(--pri);box-shadow:0 0 0 3px var(--soft)}
+label.f{font-size:.85rem;font-weight:600;color:var(--mut)}
+.xbar{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:18px}
+.xbar h3{margin:0;flex:1;min-width:160px;font-family:'Noto Serif Thai',Georgia,serif}
+.pill{background:var(--soft);color:var(--pri);padding:6px 14px;border-radius:99px;font-weight:600;font-variant-numeric:tabular-nums}
+.pill.warn{background:var(--badb);color:var(--bad)}
+.prog{height:6px;background:var(--soft);border-radius:9px;overflow:hidden;margin-bottom:20px}
+.prog div{height:100%;background:var(--pri);transition:width .3s}
+.exl{display:grid;grid-template-columns:1fr 270px;gap:20px;align-items:start}
+@media(max-width:800px){.exl{grid-template-columns:1fr}}
+.qn{color:var(--pri);font-weight:600;font-size:.9rem}
+.qt{font-size:1.2rem;font-weight:500;margin:6px 0 14px;font-family:'Noto Serif Thai',Georgia,serif}
+.qimg{max-width:100%;max-height:320px;border-radius:12px;margin-bottom:14px;border:1px solid var(--line);display:block}
+.opt{display:flex;align-items:center;gap:12px;padding:12px 14px;border:1.5px solid var(--line);border-radius:12px;margin-bottom:10px;cursor:pointer;background:var(--card)}
+.opt:hover{border-color:var(--pri)}
+.opt:has(input:checked){border-color:var(--pri);background:var(--soft)}
+.opt b{width:28px;height:28px;border-radius:8px;background:var(--soft);color:var(--pri);display:grid;place-items:center;flex:none}
+.opt img.thumb{width:64px;height:64px;object-fit:cover;border-radius:8px;flex:none}
+.opt.ok{border-color:var(--ok)!important;background:var(--okb)!important}
+.opt.bad{border-color:var(--bad)!important;background:var(--badb)!important}
+.opt input{accent-color:var(--pri)}
+.fb{padding:12px 14px;border-radius:12px;margin-top:12px;font-size:.95rem}
+.fb.ok{background:var(--okb);color:var(--ok)}.fb.bad{background:var(--badb);color:var(--bad)}
+.fb small{display:block;color:var(--ink);margin-top:4px}
+.foot{display:flex;gap:10px;margin-top:18px;flex-wrap:wrap}.foot .sp{flex:1}
+.pal{display:flex;gap:9px;margin:14px 0;overflow-x:auto;padding-bottom:8px;scrollbar-width:thin}
+.pb{flex:none;width:36px;height:36px;border-radius:50%;border:1.3px solid var(--line);background:var(--card);color:var(--mut);font:600 .82rem 'Noto Serif Thai',Georgia,serif;cursor:pointer;position:relative}
+.pb.ans{background:var(--soft);border-color:var(--pri);color:var(--pri)}
+.pb.cur{background:var(--pri);color:var(--onpri);border-color:var(--pri);box-shadow:0 0 0 3px var(--goldb)}
+.pb.fl{border-color:var(--gold)}
+.pstat{text-align:center;flex:1}
+.pstat b{display:block;font:600 1.35rem 'Noto Serif Thai',Georgia,serif}
+.pstat span{color:var(--mut);font-size:.78rem}
+.lgd{font-size:.8rem;color:var(--mut)}
+.sc{display:flex;gap:26px;align-items:center;flex-wrap:wrap}
+.ring{width:130px;height:130px;border-radius:50%;background:conic-gradient(var(--pri) calc(var(--p)*1%),var(--soft) 0);display:grid;place-items:center}
+.ring div{width:100px;height:100px;border-radius:50%;background:var(--card);display:grid;place-items:center;font-size:1.6rem;font-weight:700;color:var(--pri)}
+.rv{margin-top:14px;border-left:4px solid var(--line)}
+.rv.ok{border-left-color:var(--ok)}.rv.bad{border-left-color:var(--bad)}
+table{width:100%;border-collapse:collapse;display:block;overflow-x:auto;-webkit-overflow-scrolling:touch}
+td,th{text-align:left;padding:10px 8px;border-bottom:1px solid var(--line);font-size:.92rem;vertical-align:top;white-space:nowrap}
+td.wrap{white-space:normal}
+th{color:var(--mut);font-weight:600}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:space-between;margin-bottom:14px}
+.two{display:grid;grid-template-columns:1fr 1fr 110px;gap:12px}
+@media(max-width:600px){.two{grid-template-columns:1fr}}
+.ov{position:fixed;inset:0;background:rgba(20,26,48,.5);display:grid;place-items:center;padding:16px;z-index:20}
+.md{background:var(--card);border-radius:18px;padding:24px;width:100%;max-width:560px;max-height:90vh;overflow:auto}
+.toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 20px;border-radius:99px;z-index:30}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;margin:16px 0}
+@media(max-width:480px){.stats{grid-template-columns:repeat(3,1fr);gap:8px}.stats .stat b{font-size:1.4rem}}
+.stat{text-align:center;border-top:2px solid var(--gold)}.stat b{display:block;font:600 1.9rem 'Noto Serif Thai',Georgia,serif;color:var(--pri)}.stat span{color:var(--mut);font-size:.85rem}
+.sec{font-size:.78rem;font-weight:600;color:var(--gold);letter-spacing:.06em;margin:14px 0 8px}
+.lg{min-height:70vh;display:grid;place-items:center;padding:20px}
+.lgc{max-width:440px;text-align:center;padding:36px 28px;border-top:3px solid var(--gold)}
+.crow{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-start;border:1px solid var(--line);border-radius:12px;padding:10px;margin-bottom:8px;background:var(--soft)}
+.crow>div{min-width:180px}
+.crow .inp{margin:0 0 6px}
+.thumb-sm{width:56px;height:56px;object-fit:cover;border-radius:8px;border:1px solid var(--line)}
+.pin{font:700 3rem/1 'Noto Serif Thai',Georgia,serif;letter-spacing:.08em;color:var(--pri);text-align:center;margin:10px 0}
+.plist{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0}
+.ptag{background:var(--soft);color:var(--pri);padding:6px 14px;border-radius:99px;font-weight:600;font-size:.9rem}
+.lbrow{display:flex;justify-content:space-between;padding:9px 14px;border-bottom:1px solid var(--line)}
+.lbrow:first-child{font-weight:700;color:var(--gold)}
+.livebtns{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:16px}
+@media(max-width:560px){.livebtns{grid-template-columns:1fr}}
+.lbtn{border:none;border-radius:14px;padding:22px 16px;color:#fff;font:600 1.05rem/1.4 inherit;cursor:pointer;text-align:left;display:flex;align-items:center;gap:12px}
+.lbtn img{width:52px;height:52px;object-fit:cover;border-radius:8px;flex:none}
+.lbtn:disabled{opacity:.55;cursor:default}
+.lbtn.c0{background:#C0392B}.lbtn.c1{background:#2471A3}.lbtn.c2{background:#B7950B}.lbtn.c3{background:#229954}
+.timerbar{height:8px;background:var(--soft);border-radius:9px;overflow:hidden;margin:12px 0}
+.timerbar div{height:100%;background:var(--gold);transition:width .25s linear}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.min.js"></script>
+<script>
+const $=s=>document.querySelector(s),esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])),L='ABCDEFGH';
+const CATS=['ทั่วไป','ภาษาไทย','ภาษาอังกฤษ','คณิตศาสตร์','วิทยาศาสตร์','สังคมศึกษา','คอมพิวเตอร์/เทคโนโลยี','สุขศึกษาและพลศึกษา','ศิลปะ','ภาษาต่างประเทศอื่นๆ'];
 
-<html lang="th"><head><meta charset="utf-8"/><meta content="width=device-width, initial-scale=1.0" name="viewport"/><meta content="web_standard" name="shell-type"/><title>ExamFlow - Assessment Platform</title><link href="https://fonts.googleapis.com" rel="preconnect"/><link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Plus+Jakarta+Sans:wght@600;700&amp;display=swap" rel="stylesheet"/><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/>
-<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/><style>@layer base { html, body { margin: 0; padding: 0; } body { overscroll-behavior: none; } main > :first-child { margin-top: 0 !important; } main > :last-child { margin-bottom: 0 !important; } } ::-webkit-scrollbar { display: none; }</style><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">tailwind.config = { darkMode: "class", theme: { extend: { "colors": { "on-background": "#131b2e", "tertiary-fixed-dim": "#ffb77d", "inverse-on-surface": "#eef0ff", "on-secondary-fixed": "#00201d", "surface-container-high": "#e2e7ff", "surface": "#faf8ff", "primary-container": "#1e40af", "on-primary-fixed": "#001453", "surface-bright": "#faf8ff", "tertiary-container": "#743d00", "on-primary": "#ffffff", "on-surface-variant": "#444653", "on-error": "#ffffff", "primary-fixed-dim": "#b8c4ff", "error": "#ba1a1a", "inverse-surface": "#283044", "on-secondary-fixed-variant": "#005049", "surface-variant": "#dae2fd", "surface-container-lowest": "#ffffff", "on-tertiary-fixed": "#2f1500", "secondary-container": "#86f2e4", "primary-fixed": "#dde1ff", "tertiary": "#532a00", "secondary-fixed-dim": "#6bd8cb", "secondary": "#006a61", "inverse-primary": "#b8c4ff", "on-secondary-container": "#006f66", "on-tertiary": "#ffffff", "surface-dim": "#d2d9f4", "outline-variant": "#c4c5d5", "on-tertiary-fixed-variant": "#6e3900", "on-surface": "#131b2e", "background": "#faf8ff", "outline": "#757684", "tertiary-fixed": "#ffdcc3", "surface-container-highest": "#dae2fd", "on-secondary": "#ffffff", "surface-tint": "#3755c3", "on-primary-fixed-variant": "#173bab", "on-primary-container": "#a8b8ff", "error-container": "#ffdad6", "on-tertiary-container": "#ffa85d", "surface-container-low": "#f2f3ff", "secondary-fixed": "#89f5e7", "surface-container": "#eaedff", "primary": "#00288e", "on-error-container": "#93000a" }, "borderRadius": { "DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px" }, "spacing": { "gutter": "1.5rem", "space-xl": "2.5rem", "space-md": "1rem", "space-sm": "0.5rem", "gutter-mobile": "1rem", "space-xs": "0.25rem", "margin-mobile": "1rem", "margin": "2rem", "space-lg": "1.5rem" }, "fontFamily": { "headline-lg-mobile": [ "Plus Jakarta Sans" ], "body-md": [ "Inter" ], "headline-xl-mobile": [ "Plus Jakarta Sans" ], "label-sm": [ "Inter" ], "headline-sm": [ "Plus Jakarta Sans" ], "label-md": [ "Inter" ], "headline-md": [ "Plus Jakarta Sans" ], "body-lg": [ "Inter" ], "body-sm": [ "Inter" ], "headline-xl": [ "Plus Jakarta Sans" ], "headline-lg": [ "Plus Jakarta Sans" ], "label-lg": [ "Inter" ] }, "fontSize": { "headline-lg-mobile": [ "24px", { "lineHeight": "32px", "letterSpacing": "-0.015em", "fontWeight": "600" } ], "body-md": [ "16px", { "lineHeight": "24px", "fontWeight": "400" } ], "headline-xl-mobile": [ "28px", { "lineHeight": "36px", "letterSpacing": "-0.02em", "fontWeight": "700" } ], "label-sm": [ "11px", { "lineHeight": "14px", "letterSpacing": "0.04em", "fontWeight": "600" } ], "headline-sm": [ "18px", { "lineHeight": "26px", "letterSpacing": "-0.005em", "fontWeight": "600" } ], "label-md": [ "12px", { "lineHeight": "16px", "letterSpacing": "0.02em", "fontWeight": "500" } ], "headline-md": [ "22px", { "lineHeight": "30px", "letterSpacing": "-0.01em", "fontWeight": "600" } ], "body-lg": [ "18px", { "lineHeight": "28px", "fontWeight": "400" } ], "body-sm": [ "14px", { "lineHeight": "20px", "fontWeight": "400" } ], "headline-xl": [ "36px", { "lineHeight": "44px", "letterSpacing": "-0.02em", "fontWeight": "700" } ], "headline-lg": [ "28px", { "lineHeight": "36px", "letterSpacing": "-0.015em", "fontWeight": "600" } ], "label-lg": [ "14px", { "lineHeight": "20px", "letterSpacing": "0.01em", "fontWeight": "600" } ] } } } };</script></head><body class="bg-background text-on-surface font-body-md text-body-md min-h-screen"><header class="fixed top-0 w-full z-50 bg-surface-container-lowest/90 backdrop-blur-md shadow-[0_1px_8px_rgba(0,0,0,0.04)]"><div class="h-16 w-full px-margin flex items-center justify-between gap-space-md"><div class="flex items-center gap-space-lg"><a class="flex items-center gap-space-sm" data-path="exam-portal" href="#"><img alt="ExamFlow Logo" class="h-8 w-auto object-contain" src="https://lh3.googleusercontent.com/aida/AEtjO1Wk8CtIKEZfIVYUVAI5VH7XwZme2RJPjYg6fVqTzAr7Hiv5nTF3jkchb6AkRdvv30xSSmIBmA-BX-uaCmciAdzIGA2Sh9BvOZfpSsjhV1MJjYG95tbCjfFvFoZYyGr89HDlds9uCCsYa86-T3kaYVLTn360XggYWodWeHqXoHyrGGbPHPrPBc90rr8iipcbiE2JoaH3P-Vmr12SyxEjlZr60rH56mP5loRkKcqajbDiu8VLxGMbeUpL4d9B"/><span class="font-headline-md text-headline-md text-primary tracking-tight">ExamFlow</span></a><div class="hidden xl:flex items-center gap-space-xs px-space-sm py-1 bg-surface-container-low rounded-full"><span class="w-2 h-2 rounded-full bg-secondary"></span><span class="font-label-sm text-label-sm text-on-surface-variant">เชื่อมต่อ Google Workspace สำหรับการศึกษาแล้ว</span></div></div><nav class="hidden md:flex items-center gap-space-xs" data-active-classes="bg-surface-container-high text-on-surface font-semibold"><a class="px-space-md py-space-sm rounded-lg font-label-lg text-label-lg text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface transition-colors" data-path="exam-portal" href="#">Portal ข้อสอบ</a><a class="px-space-md py-space-sm rounded-lg font-label-lg text-label-lg text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface transition-colors" data-path="live-exam" href="#">ห้องสอบ Live Exam</a><a class="px-space-md py-space-sm rounded-lg font-label-lg text-label-lg text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface transition-colors" data-path="exam-management" href="#">จัดการข้อสอบ</a><a aria-current="page" class="px-space-md py-space-sm rounded-lg transition-colors bg-surface-container-high text-on-surface font-semibold" data-path="results-analytics" href="#">ผลสอบ &amp; สถิติ</a></nav><div class="flex items-center gap-space-sm"><button aria-label="การแจ้งเตือน" class="relative p-space-sm rounded-full text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors" type="button"><span class="material-symbols-outlined text-body-lg">notifications</span><span class="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-primary"></span></button><div class="flex items-center gap-space-sm pl-space-sm bg-surface-container-lowest rounded-full"><div class="flex items-center gap-space-xs cursor-pointer rounded-full p-0.5 hover:bg-surface-container transition-colors"><img alt="Profile" class="w-8 h-8 rounded-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCY82_zUQKF_7qCva-KaovzcbU4e8iQgy5xnRYyAFh8twdPnZ8-aW6ywzPaJHHgV7Si2S1TpoTcNJKyD-k7cVtqKkKukDvGTpcGbpSPUJOfv8gxXuBylbrKWtaiZyg6IbP80Frrskl3GLaF5T7O43QApDYJ-vDHZ-9cFk2lDAN0X5OtTTec-zutpNkHSI_AGj6O_YeQVfyKcu0WtaDfm3KwqCTapdJ5fZ-jHBL21tbT4nSLUSsYe5X67g"/><span class="material-symbols-outlined text-on-surface-variant text-body-md">expand_more</span></div></div></div></div></header><main id="view" class="w-full pt-16 bg-background min-h-[70vh]"></main><template id="stitch-original"><div class="flex flex-col w-full">
-<div class="w-full max-w-7xl mx-auto px-margin-mobile md:px-margin py-space-lg flex flex-col gap-space-xl">
-<!-- Top Identity & Status Banner -->
-<div class="relative overflow-hidden rounded-xl bg-surface-container-lowest shadow-sm p-space-lg flex flex-col lg:flex-row lg:items-center lg:justify-between gap-space-lg">
-<div class="flex items-center gap-space-md">
-<div class="relative flex-shrink-0">
-<img class="w-16 h-16 rounded-full object-cover shadow-sm" data-alt="Clear modern portrait photograph of a focused university student wearing a navy collared shirt with subtle studio lighting and light blue neutral backdrop." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCr_gjIGDNB6LO4Tjx_s92VV7xc9hBvC-w-h4uu3EVgSwO9GN3VGRIQBjWNxyZCMZTSC9YZ2aFYDmnYP-UWdWBg4Q0ustScNAn1qZjXPBIpLbc6edEd-LOaaUe5830ULvGBlwmrV-j6uLvLInl-69e-a2VdkqAGQ8Qui7LVd4QIdBqWfbWlG-eR-vd2K4gjBNiVN-MV480CvC1xmUE1R9pgoCt1bj4syBNHtvBTr8XCJlTjXYtSrzFxEg"/>
-<span class="absolute bottom-0 right-0 w-5 h-5 rounded-full bg-secondary flex items-center justify-center text-on-secondary shadow-sm">
-<span class="material-symbols-outlined text-[14px]" style="font-variation-settings: 'FILL' 1;">verified</span>
-</span>
-</div>
-<div class="flex flex-col">
-<div class="flex flex-wrap items-center gap-space-xs">
-<span class="font-headline-sm text-headline-sm text-on-surface">นายภัทรดนัย อัครโยธิน</span>
-<span class="px-space-xs py-0.5 rounded-full bg-surface-container-high text-on-secondary-fixed-variant font-label-sm text-label-sm flex items-center gap-1">
-<span class="w-1.5 h-1.5 rounded-full bg-secondary"></span>
-              Google Classroom ID: phat.ak@ku.ac.th
-            </span>
-</div>
-<span class="font-body-sm text-body-sm text-on-surface-variant">รหัสประจำตัวผู้สอบ: EXF-2025-9842 • รายวิชา: ฟิสิกส์ทั่วไปขั้นสูง (PHYS-301)</span>
-</div>
-</div>
-<div class="flex flex-wrap items-center gap-space-sm">
-<button class="px-space-md py-2.5 rounded-lg bg-surface-container hover:bg-surface-container-high text-on-surface font-label-lg text-label-lg flex items-center gap-space-xs transition-colors shadow-sm" type="button">
-<span class="material-symbols-outlined text-[18px]">share</span>
-<span>แชร์ไปยัง Google Classroom</span>
-</button>
-<button class="px-space-md py-2.5 rounded-lg bg-primary hover:bg-primary-container text-on-primary font-label-lg text-label-lg flex items-center gap-space-xs transition-colors shadow-sm" type="button">
-<span class="material-symbols-outlined text-[18px]">download</span>
-<span>ดาวน์โหลดใบรับรองผลคะแนน (PDF)</span>
-</button>
-</div>
-</div>
-<!-- Master Performance Scorecards Bento Grid -->
-<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-space-md">
-<!-- Card 1: Master Score -->
-<div class="rounded-xl bg-surface-container-lowest p-space-lg shadow-sm flex flex-col justify-between">
-<div class="flex items-center justify-between">
-<span class="font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">คะแนนรวมสุทธิ</span>
-<span class="w-8 h-8 rounded-full bg-surface-container-low flex items-center justify-center text-primary">
-<span class="material-symbols-outlined text-[20px]">military_tech</span>
-</span>
-</div>
-<div class="my-space-md">
-<div class="flex items-baseline gap-space-xs">
-<span class="font-headline-xl text-headline-xl text-primary font-bold">46</span>
-<span class="font-headline-sm text-headline-sm text-on-surface-variant">/ 50</span>
-</div>
-<div class="flex items-center gap-space-xs mt-1">
-<span class="px-2 py-0.5 rounded bg-surface-container text-primary font-label-sm text-label-sm font-semibold">ระดับผลการเรียน A (92%)</span>
-</div>
-</div>
-<div class="w-full bg-surface-container-low h-1.5 rounded-full overflow-hidden">
-<div class="bg-primary h-full rounded-full" style="width: 92%"></div>
-</div>
-</div>
-<!-- Card 2: Ranking Position -->
-<div class="rounded-xl bg-surface-container-lowest p-space-lg shadow-sm flex flex-col justify-between">
-<div class="flex items-center justify-between">
-<span class="font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">อันดับคะแนนในรุ่น</span>
-<span class="w-8 h-8 rounded-full bg-surface-container-low flex items-center justify-center text-secondary">
-<span class="material-symbols-outlined text-[20px]">leaderboard</span>
-</span>
-</div>
-<div class="my-space-md">
-<div class="flex items-baseline gap-space-xs">
-<span class="font-headline-xl text-headline-xl text-secondary font-bold">#3</span>
-<span class="font-headline-sm text-headline-sm text-on-surface-variant">/ 120 คน</span>
-</div>
-<div class="flex items-center gap-space-xs mt-1">
-<span class="text-secondary font-label-sm text-label-sm font-semibold">อยู่ในกลุ่ม Top 2.5% ของผู้สอบทั้งหมด</span>
-</div>
-</div>
-<div class="text-on-surface-variant font-label-sm text-label-sm flex items-center justify-between">
-<span>คะแนนเฉลี่ยรวม: 34.2</span>
-<span>สูงสุด: 49.0</span>
-</div>
-</div>
-<!-- Card 3: Time Spent -->
-<div class="rounded-xl bg-surface-container-lowest p-space-lg shadow-sm flex flex-col justify-between">
-<div class="flex items-center justify-between">
-<span class="font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">เวลาที่ใช้ทำข้อสอบ</span>
-<span class="w-8 h-8 rounded-full bg-surface-container-low flex items-center justify-center text-on-surface">
-<span class="material-symbols-outlined text-[20px]">timer</span>
-</span>
-</div>
-<div class="my-space-md">
-<div class="flex items-baseline gap-space-xs">
-<span class="font-headline-xl text-headline-xl text-on-surface font-bold">42</span>
-<span class="font-headline-sm text-headline-sm text-on-surface-variant">นาที</span>
-</div>
-<div class="flex items-center gap-space-xs mt-1">
-<span class="text-on-surface-variant font-label-sm text-label-sm">จากเวลาที่กำหนด 60 นาที (เร็วกว่าเฉลี่ย 8 นาที)</span>
-</div>
-</div>
-<div class="w-full bg-surface-container-low h-1.5 rounded-full overflow-hidden">
-<div class="bg-secondary-fixed-dim h-full rounded-full" style="width: 70%"></div>
-</div>
-</div>
-<!-- Card 4: Accuracy Metrics -->
-<div class="rounded-xl bg-surface-container-lowest p-space-lg shadow-sm flex flex-col justify-between">
-<div class="flex items-center justify-between">
-<span class="font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">สัดส่วนความถูกต้อง</span>
-<span class="w-8 h-8 rounded-full bg-surface-container-low flex items-center justify-center text-primary-container">
-<span class="material-symbols-outlined text-[20px]">pie_chart</span>
-</span>
-</div>
-<div class="my-space-md flex items-center justify-between">
-<div>
-<div class="font-headline-xl text-headline-xl text-on-surface font-bold">92%</div>
-<div class="text-on-surface-variant font-label-sm text-label-sm">ตอบถูก 46 จาก 50 ข้อ</div>
-</div>
-<div class="flex flex-col gap-1 text-right">
-<span class="font-label-sm text-label-sm text-secondary font-semibold">✓ ถูก 46 ข้อ</span>
-<span class="font-label-sm text-label-sm text-error font-semibold">✗ ผิด 4 ข้อ</span>
-</div>
-</div>
-<div class="flex items-center gap-1 w-full">
-<div class="h-1.5 rounded-l-full bg-secondary flex-grow" style="flex: 46;"></div>
-<div class="h-1.5 rounded-r-full bg-error flex-grow" style="flex: 4;"></div>
-</div>
-</div>
-</div>
-<!-- Analytics Section: Skill Radar + Topic Breakdown -->
-<div class="grid grid-cols-1 lg:grid-cols-12 gap-space-lg">
-<!-- Topic Mastery Breakdown Cards -->
-<div class="lg:col-span-7 flex flex-col gap-space-md">
-<div class="rounded-xl bg-surface-container-lowest p-space-lg shadow-sm flex flex-col gap-space-md h-full">
-<div class="flex items-center justify-between">
-<div class="flex flex-col">
-<span class="font-headline-sm text-headline-sm text-on-surface">การวิเคราะห์ผลการเรียนรู้รายหมวดวิชา</span>
-<span class="font-body-sm text-body-sm text-on-surface-variant">ระดับสมรรถนะเปรียบเทียบกับเกณฑ์ความสามารถขั้นสูง</span>
-</div>
-<span class="material-symbols-outlined text-primary text-[24px]">analytics</span>
-</div>
-<div class="flex flex-col gap-space-md mt-space-sm">
-<!-- Topic 1 -->
-<div class="p-space-md rounded-lg bg-surface-container-low flex flex-col gap-space-xs">
-<div class="flex items-center justify-between">
-<div class="flex items-center gap-space-xs">
-<span class="w-3 h-3 rounded-full bg-primary"></span>
-<span class="font-label-lg text-label-lg text-on-surface">1. กลศาสตร์และพลศาสตร์ (Mechanics)</span>
-</div>
-<div class="flex items-center gap-space-sm">
-<span class="font-label-md text-label-md text-on-surface-variant">19/20 ข้อ</span>
-<span class="font-headline-sm text-headline-sm text-primary font-bold">95%</span>
-</div>
-</div>
-<div class="w-full bg-surface-container h-2 rounded-full overflow-hidden">
-<div class="bg-primary h-full rounded-full" style="width: 95%;"></div>
-</div>
-<span class="font-body-sm text-body-sm text-on-surface-variant">ความเข้าใจเรื่องกฎการเคลื่อนที่ของนิวตันและงาน-พลังงานอยู่ในระดับดีเยี่ยม</span>
-</div>
-<!-- Topic 2 -->
-<div class="p-space-md rounded-lg bg-surface-container-low flex flex-col gap-space-xs">
-<div class="flex items-center justify-between">
-<div class="flex items-center gap-space-xs">
-<span class="w-3 h-3 rounded-full bg-secondary"></span>
-<span class="font-label-lg text-label-lg text-on-surface">2. อุณหพลศาสตร์และความร้อน (Thermodynamics)</span>
-</div>
-<div class="flex items-center gap-space-sm">
-<span class="font-label-md text-label-md text-on-surface-variant">10/10 ข้อ</span>
-<span class="font-headline-sm text-headline-sm text-secondary font-bold">100%</span>
-</div>
-</div>
-<div class="w-full bg-surface-container h-2 rounded-full overflow-hidden">
-<div class="bg-secondary h-full rounded-full" style="width: 100%;"></div>
-</div>
-<span class="font-body-sm text-body-sm text-on-surface-variant">ทำคะแนนได้สมบูรณ์แบบในส่วนของวัฏจักรคาร์โนต์และการคำนวณเอนโทรปี</span>
-</div>
-<!-- Topic 3 -->
-<div class="p-space-md rounded-lg bg-surface-container-low flex flex-col gap-space-xs">
-<div class="flex items-center justify-between">
-<div class="flex items-center gap-space-xs">
-<span class="w-3 h-3 rounded-full bg-surface-tint"></span>
-<span class="font-label-lg text-label-lg text-on-surface">3. คลื่นและทัศนศาสตร์ (Waves &amp; Optics)</span>
-</div>
-<div class="flex items-center gap-space-sm">
-<span class="font-label-md text-label-md text-on-surface-variant">9/10 ข้อ</span>
-<span class="font-headline-sm text-headline-sm text-surface-tint font-bold">90%</span>
-</div>
-</div>
-<div class="w-full bg-surface-container h-2 rounded-full overflow-hidden">
-<div class="bg-surface-tint h-full rounded-full" style="width: 90%;"></div>
-</div>
-<span class="font-body-sm text-body-sm text-on-surface-variant">ตอบถูกในหลักการแทรกสอดและการเลี้ยวเบน พลาดข้อคำนวณการหักเหแสงผ่านปริซึม 1 ข้อ</span>
-</div>
-<!-- Topic 4 -->
-<div class="p-space-md rounded-lg bg-surface-container-low flex flex-col gap-space-xs">
-<div class="flex items-center justify-between">
-<div class="flex items-center gap-space-xs">
-<span class="w-3 h-3 rounded-full bg-tertiary-container"></span>
-<span class="font-label-lg text-label-lg text-on-surface">4. ไฟฟ้าสถิตและแม่เหล็กไฟฟ้า (Electrostatics)</span>
-</div>
-<div class="flex items-center gap-space-sm">
-<span class="font-label-md text-label-md text-on-surface-variant">8/10 ข้อ</span>
-<span class="font-headline-sm text-headline-sm text-tertiary-container font-bold">80%</span>
-</div>
-</div>
-<div class="w-full bg-surface-container h-2 rounded-full overflow-hidden">
-<div class="bg-tertiary-container h-full rounded-full" style="width: 80%;"></div>
-</div>
-<span class="font-body-sm text-body-sm text-on-surface-variant">จุดที่ควรพัฒนา: การวิเคราะห์ศักย์ไฟฟ้าในสนามหลายประจุและสมการเกาส์</span>
-</div>
-</div>
-</div>
-</div>
-<!-- Skill Radar Visualization Chart -->
-<div class="lg:col-span-5 flex flex-col">
-<div class="rounded-xl bg-surface-container-lowest p-space-lg shadow-sm flex flex-col items-center justify-between h-full">
-<div class="w-full flex items-center justify-between">
-<div>
-<span class="font-headline-sm text-headline-sm text-on-surface">เรดาร์สมรรถนะ (Competency Radar)</span>
-<p class="font-body-sm text-body-sm text-on-surface-variant">การกระจายความชำนาญเทียบค่ามาตรฐานห้องเรียน</p>
-</div>
-<span class="px-2 py-1 rounded bg-secondary-container text-on-secondary-container font-label-sm text-label-sm">เกียรตินิยม</span>
-</div>
-<!-- Radar Chart Inline SVG -->
-<div class="w-full max-w-[320px] aspect-square my-space-md flex items-center justify-center relative">
-<svg class="w-full h-full overflow-visible" viewbox="0 0 300 300">
-<!-- Web Polygons -->
-<polygon class="text-surface-container-highest" fill="none" points="150,30 270,150 150,270 30,150" stroke="currentColor" stroke-width="1.5"></polygon>
-<polygon class="text-surface-container-highest" fill="none" points="150,60 240,150 150,240 60,150" stroke="currentColor" stroke-width="1.5"></polygon>
-<polygon class="text-surface-container-highest" fill="none" points="150,90 210,150 150,210 90,150" stroke="currentColor" stroke-width="1.5"></polygon>
-<polygon class="text-surface-container-highest" fill="none" points="150,120 180,150 150,180 120,150" stroke="currentColor" stroke-dasharray="3,3" stroke-width="1"></polygon>
-<!-- Axis Lines -->
-<line class="text-surface-container-highest" stroke="currentColor" stroke-width="1.5" x1="150" x2="150" y1="30" y2="270"></line>
-<line class="text-surface-container-highest" stroke="currentColor" stroke-width="1.5" x1="30" x2="270" y1="150" y2="150"></line>
-<!-- Class Average Shape (Benchmark) -->
-<polygon fill="rgba(117,118,132,0.15)" points="150,85 220,150 150,225 80,150" stroke="#757684" stroke-dasharray="4,4" stroke-width="1.5"></polygon>
-<!-- Student Score Shape: Mechanics 95% (Top: 150,36), Waves 90% (Right: 258,150), Thermodynamics 100% (Bottom: 150,270), Electrostatics 80% (Left: 54,150) -->
-<polygon fill="rgba(30,64,175,0.2)" points="150,36 258,150 150,270 54,150" stroke="#1e40af" stroke-width="2.5"></polygon>
-<!-- Data Node Circles -->
-<circle cx="150" cy="36" fill="#1e40af" r="4.5"></circle>
-<circle cx="258" cy="150" fill="#1e40af" r="4.5"></circle>
-<circle cx="150" cy="270" fill="#1e40af" r="4.5"></circle>
-<circle cx="54" cy="150" fill="#1e40af" r="4.5"></circle>
-<!-- Labels -->
-<text class="text-[11px] font-semibold fill-[#131b2e]" text-anchor="middle" x="150" y="18">กลศาสตร์ (95%)</text>
-<text class="text-[11px] font-semibold fill-[#131b2e]" text-anchor="start" x="282" y="154">คลื่น/แสง (90%)</text>
-<text class="text-[11px] font-semibold fill-[#131b2e]" text-anchor="middle" x="150" y="292">อุณหพลศาสตร์ (100%)</text>
-<text class="text-[11px] font-semibold fill-[#131b2e]" text-anchor="end" x="18" y="154">ไฟฟ้าสถิต (80%)</text>
-</svg>
-</div>
-<!-- Legend -->
-<div class="w-full flex items-center justify-center gap-space-lg pt-space-xs text-on-surface-variant font-label-sm text-label-sm">
-<div class="flex items-center gap-space-xs">
-<span class="w-3 h-3 rounded-sm bg-primary"></span>
-<span>คะแนนของคุณ</span>
-</div>
-<div class="flex items-center gap-space-xs">
-<span class="w-3 h-0.5 bg-outline"></span>
-<span>ค่าเฉลี่ยห้องเรียน (68.4%)</span>
-</div>
-</div>
-</div>
-</div>
-</div>
-<!-- Section: Detailed Question-by-Question Solution Review -->
-<div class="flex flex-col gap-space-md">
-<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-space-sm">
-<div>
-<span class="font-headline-md text-headline-md text-on-surface">เฉลยข้อสอบและวิเคราะห์รายข้อ (Itemized Solution Key)</span>
-<p class="font-body-sm text-body-sm text-on-surface-variant">ตรวจสอบข้อคำถาม แนวทางการให้คะแนน และคำอธิบายเชิงขั้นตอนแบบละเอียด</p>
-</div>
-<!-- Filter Tabs -->
-<div class="flex items-center p-1 rounded-lg bg-surface-container-low shadow-sm">
-<button class="px-space-md py-1.5 rounded bg-surface-container-lowest text-on-surface font-label-md text-label-md font-semibold shadow-xs" type="button">ทั้งหมด (50)</button>
-<button class="px-space-md py-1.5 rounded hover:bg-surface-container text-on-surface-variant font-label-md text-label-md" type="button">ตอบถูก (46)</button>
-<button class="px-space-md py-1.5 rounded hover:bg-surface-container text-error font-label-md text-label-md font-semibold" type="button">ข้อที่ต้องปรับปรุง (4)</button>
-</div>
-</div>
-<!-- Question Review Card 1 (Correct Answer with Diagram & Choices) -->
-<div class="rounded-xl bg-surface-container-lowest p-space-lg shadow-sm flex flex-col gap-space-md">
-<!-- Question Header Meta -->
-<div class="flex flex-wrap items-center justify-between gap-space-xs">
-<div class="flex items-center gap-space-sm">
-<span class="w-8 h-8 rounded-full bg-secondary text-on-secondary flex items-center justify-center font-label-lg text-label-lg font-bold">14</span>
-<span class="font-headline-sm text-headline-sm text-on-surface">ข้อที่ 14: การเคลื่อนที่แบบวงกลมและแรงตึงเชือกในแนวดิ่ง</span>
-</div>
-<div class="flex items-center gap-space-xs">
-<span class="px-space-sm py-1 rounded bg-secondary-container text-on-secondary-container font-label-sm text-label-sm font-semibold flex items-center gap-1">
-<span class="material-symbols-outlined text-[16px]">check_circle</span>
-              ตอบถูกต้อง (+1.0 คะแนน)
-            </span>
-<span class="px-space-sm py-1 rounded bg-surface-container font-label-sm text-label-sm text-on-surface-variant">เวลาที่ใช้: 1 นาที 14 วินาที</span>
-</div>
-</div>
-<!-- Question Prompt Body -->
-<p class="font-body-md text-body-md text-on-surface leading-relaxed">
-          วัตถุมวล \( m = 2.0 \, \text{kg} \) ผูกติดกับปลายเชือกยาว \( L = 1.5 \, \text{m} \) ถูกแกว่งให้เคลื่อนที่ในแนวดิ่งด้วยความเร็วคงตัว ขณะที่วัตถุอยู่ที่ตำแหน่งต่ำสุดของวิถีโค้ง มีอัตราเร็วเชิงเส้น \( v = 6.0 \, \text{m/s} \) จงคำนวณหาแรงตึงในเส้นเชือก \( (T) \) ณ ตำแหน่งต่ำสุดดังกล่าว (กำหนดให้ความเร่งโน้มถ่วง \( g = 9.8 \, \text{m/s}^2 \))
-        </p>
-<!-- Diagram / Figure -->
-<div class="w-full flex flex-col sm:flex-row items-center gap-space-md p-space-md rounded-lg bg-surface-container-low">
-<img class="w-full sm:w-64 h-44 rounded-lg object-contain bg-surface-container-lowest shadow-xs flex-shrink-0" data-alt="Technical physics textbook diagram showing vertical circular motion of a pendulum bob attached to a string, free body diagram with tension force vector pointing upwards and gravity vector downwards, labeled vectors in blue and dark navy with white background." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAwNx0ceRM_5E2NWld0qblUuKgzqRMaPMys_K4VoryKf47nkxutt3VEf62UFIHndU__QZx8ZbvMAy7BLnKSpmUf8cu1moxBW3bVXIrqQAM3T07i4g_zW15lRe5rI4ghogYvKEpAtuWNhkOaDYn75oCsZ37d0tjF6u1Wh0GuCTd0Heyy01YKGECtGzhoGgEKfNVQ2KjBUf_3515JvFLzzyP6bUNPkImFwu5oGctX7W2ONJxGs5vi1cEcrA"/>
-<div class="flex flex-col gap-space-xs">
-<span class="font-label-lg text-label-lg text-on-surface font-semibold">แผนภาพเวกเตอร์แรงอิสระ (Free Body Diagram)</span>
-<p class="font-body-sm text-body-sm text-on-surface-variant">พิจารณาแรงลัพธ์ที่เข้าสู่ศูนย์กลางความโค้ง ณ จุดต่ำสุด: แรงตึงเชือก \( T \) ชี้ขึ้นในทิศเข้าสู่ศูนย์กลาง และแรงโน้มถ่วง \( mg \) ชี้ลงในทิศตรงข้าม</p>
-</div>
-</div>
-<!-- Choices Matrix with Selected vs Correct Status -->
-<div class="grid grid-cols-1 md:grid-cols-2 gap-space-sm mt-space-xs">
-<!-- Choice A -->
-<div class="p-space-md rounded-lg bg-surface-container-low text-on-surface-variant flex items-start gap-space-sm">
-<span class="w-6 h-6 rounded-full bg-surface-container flex-shrink-0 flex items-center justify-center font-label-sm text-label-sm">ก</span>
-<span class="font-body-md text-body-md">29.4 นิวตัน (N)</span>
-</div>
-<!-- Choice B -->
-<div class="p-space-md rounded-lg bg-surface-container-low text-on-surface-variant flex items-start gap-space-sm">
-<span class="w-6 h-6 rounded-full bg-surface-container flex-shrink-0 flex items-center justify-center font-label-sm text-label-sm">ข</span>
-<span class="font-body-md text-body-md">48.0 นิวตัน (N)</span>
-</div>
-<!-- Choice C (Correct & Selected) -->
-<div class="p-space-md rounded-lg bg-secondary-container/40 text-on-surface flex items-start justify-between gap-space-sm">
-<div class="flex items-start gap-space-sm">
-<span class="w-6 h-6 rounded-full bg-secondary text-on-secondary flex-shrink-0 flex items-center justify-center font-label-sm text-label-sm font-bold">ค</span>
-<div class="flex flex-col">
-<span class="font-body-md text-body-md font-semibold text-on-surface">67.6 นิวตัน (N)</span>
-<span class="font-label-sm text-label-sm text-secondary font-semibold">คำตอบของคุณ (ถูกต้อง)</span>
-</div>
-</div>
-<span class="material-symbols-outlined text-secondary text-[22px]">check_circle</span>
-</div>
-<!-- Choice D -->
-<div class="p-space-md rounded-lg bg-surface-container-low text-on-surface-variant flex items-start gap-space-sm">
-<span class="w-6 h-6 rounded-full bg-surface-container flex-shrink-0 flex items-center justify-center font-label-sm text-label-sm">ง</span>
-<span class="font-body-md text-body-md">87.2 นิวตัน (N)</span>
-</div>
-</div>
-<!-- Step-by-Step Explanation Accordion / Card -->
-<div class="rounded-lg bg-surface-container p-space-md flex flex-col gap-space-sm">
-<div class="flex items-center gap-space-xs text-primary">
-<span class="material-symbols-outlined text-[20px]">lightbulb</span>
-<span class="font-label-lg text-label-lg font-bold">คำอธิบายขั้นตอนการแก้โจทย์อย่างละเอียด (Step-by-step Solution)</span>
-</div>
-<div class="font-body-sm text-body-sm text-on-surface space-y-2 leading-relaxed">
-<p>1. <strong>ตั้งสมการแรงสู่ศูนย์กลาง:</strong> \( \sum F_c = m \cdot a_c = \frac{m v^2}{r} \)</p>
-<p>2. <strong>แทนค่าทิศทางของแรง:</strong> ณ จุดต่ำสุด แรงตึงเชือก \( T \) มีทิศทางเข้าสู่ศูนย์กลาง และน้ำหนัก \( mg \) มีทิศออกจากศูนย์กลาง ดังนั้น \( T - mg = \frac{m v^2}{L} \)</p>
-<p>3. <strong>ย้ายข้างหาค่า \( T \):</strong> \( T = mg + \frac{m v^2}{L} = (2.0 \times 9.8) + \frac{2.0 \times 6.0^2}{1.5} \)</p>
-<p>4. <strong>คำนวณตัวเลข:</strong> \( T = 19.6 + 48.0 = 67.6 \, \text{N} \)</p>
-</div>
-</div>
-</div>
-<!-- Question Review Card 2 (Incorrect Answer with Visual Breakdown) -->
-<div class="rounded-xl bg-surface-container-lowest p-space-lg shadow-sm flex flex-col gap-space-md">
-<!-- Question Header Meta -->
-<div class="flex flex-wrap items-center justify-between gap-space-xs">
-<div class="flex items-center gap-space-sm">
-<span class="w-8 h-8 rounded-full bg-error text-on-error flex items-center justify-center font-label-lg text-label-lg font-bold">29</span>
-<span class="font-headline-sm text-headline-sm text-on-surface">ข้อที่ 29: ศักย์ไฟฟ้าและงานในการเคลื่อนย้ายประจุในสนามไฟฟ้าสถิต</span>
-</div>
-<div class="flex items-center gap-space-xs">
-<span class="px-space-sm py-1 rounded bg-error-container text-on-error-container font-label-sm text-label-sm font-semibold flex items-center gap-1">
-<span class="material-symbols-outlined text-[16px]">cancel</span>
-              ตอบไม่ถูกต้อง (0.0 คะแนน)
-            </span>
-<span class="px-space-sm py-1 rounded bg-surface-container font-label-sm text-label-sm text-on-surface-variant">เวลาที่ใช้: 2 นาที 40 วินาที</span>
-</div>
-</div>
-<!-- Question Prompt Body -->
-<p class="font-body-md text-body-md text-on-surface leading-relaxed">
-          แผ่นตัวนำขนานคู่หนึ่งวางห่างกันเป็นระยะ \( d = 0.05 \, \text{m} \) มีความต่างศักย์ระหว่างแผ่นคงที่เท่ากับ \( V = 200 \, \text{V} \) ถ้าต้องการเคลื่อนประจุทดสอบ \( q = -2.0 \times 10^{-6} \, \text{C} \) จากแผ่นขั้วบวกไปยังแผ่นขั้วลบ จะต้องใช้งานภายนอก \( (W_{\text{ext}}) \) ปริมาณเท่าใด?
-        </p>
-<!-- Diagram / Illustration Placeholder -->
-<div class="w-full flex flex-col sm:flex-row items-center gap-space-md p-space-md rounded-lg bg-surface-container-low">
-<img class="w-full sm:w-64 h-44 rounded-lg object-contain bg-surface-container-lowest shadow-xs flex-shrink-0" data-alt="Schematic vector illustration of two parallel conducting plates with uniform electric field lines pointing from positive to negative terminal, showing a negative test charge movement with labeled work and potential equations in clean graphic design." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCNd5oIVcdRDZbUBBN1lY3itVKQ3gRisEIT-GD_qQeFYFDciV-flb9q64V8jsE5fGeXkV-8SFl4vFb2dew5ljHJq3ZjHkEXAcm-WtrMIigOHK_UWGzy7wq29dI23aRpH2KsERLazVuqVZ14F77f1LnSbrBch2h3k9jtWtcxzMfZo13h6FRQHjcQXWWJAaR5e8DLQlc5g0nd_Ok2KZyUWylZIRXxKfrWlzvnH3qW1Fyg08sqGOPb8IZVCw"/>
-<div class="flex flex-col gap-space-xs">
-<span class="font-label-lg text-label-lg text-on-surface font-semibold">แผนภาพสนามไฟฟ้าระหว่างแผ่นตัวนำคู่ขนาน</span>
-<p class="font-body-sm text-body-sm text-on-surface-variant">ประจุลบตามธรรมชาติจะถูกดึงดูดเข้าหาแผ่นบวก การเคลื่อนย้ายประจุลบไปยังแผ่นลบจึงเป็นการเคลื่อนที่ต้านแรงสนามไฟฟ้า</p>
-</div>
-</div>
-<!-- Choices Breakdown -->
-<div class="grid grid-cols-1 md:grid-cols-2 gap-space-sm mt-space-xs">
-<!-- Choice A (Student's Incorrect Choice) -->
-<div class="p-space-md rounded-lg bg-error-container/40 text-on-surface flex items-start justify-between gap-space-sm">
-<div class="flex items-start gap-space-sm">
-<span class="w-6 h-6 rounded-full bg-error text-on-error flex-shrink-0 flex items-center justify-center font-label-sm text-label-sm font-bold">ก</span>
-<div class="flex flex-col">
-<span class="font-body-md text-body-md font-semibold text-on-surface">-4.0 × 10⁻⁴ จูล (J)</span>
-<span class="font-label-sm text-label-sm text-error font-semibold">คำตอบที่คุณเลือก (ผิดพลาด)</span>
-</div>
-</div>
-<span class="material-symbols-outlined text-error text-[22px]">close</span>
-</div>
-<!-- Choice B (The Correct Answer) -->
-<div class="p-space-md rounded-lg bg-secondary-container/40 text-on-surface flex items-start justify-between gap-space-sm">
-<div class="flex items-start gap-space-sm">
-<span class="w-6 h-6 rounded-full bg-secondary text-on-secondary flex-shrink-0 flex items-center justify-center font-label-sm text-label-sm font-bold">ข</span>
-<div class="flex flex-col">
-<span class="font-body-md text-body-md font-semibold text-on-surface">+4.0 × 10⁻⁴ จูล (J)</span>
-<span class="font-label-sm text-label-sm text-secondary font-semibold">เฉลยคำตอบที่ถูกต้อง</span>
-</div>
-</div>
-<span class="material-symbols-outlined text-secondary text-[22px]">check_circle</span>
-</div>
-<!-- Choice C -->
-<div class="p-space-md rounded-lg bg-surface-container-low text-on-surface-variant flex items-start gap-space-sm">
-<span class="w-6 h-6 rounded-full bg-surface-container flex-shrink-0 flex items-center justify-center font-label-sm text-label-sm">ค</span>
-<span class="font-body-md text-body-md">+2.0 × 10⁻⁵ จูล (J)</span>
-</div>
-<!-- Choice D -->
-<div class="p-space-md rounded-lg bg-surface-container-low text-on-surface-variant flex items-start gap-space-sm">
-<span class="w-6 h-6 rounded-full bg-surface-container flex-shrink-0 flex items-center justify-center font-label-sm text-label-sm">ง</span>
-<span class="font-body-md text-body-md">-2.0 × 10⁻⁵ จูล (J)</span>
-</div>
-</div>
-<!-- Remedial Analysis Box -->
-<div class="rounded-lg bg-surface-container p-space-md flex flex-col gap-space-sm">
-<div class="flex items-center gap-space-xs text-primary">
-<span class="material-symbols-outlined text-[20px]">psychology_alt</span>
-<span class="font-label-lg text-label-lg font-bold">วิเคราะห์จุดผิดพลาดและวิธีคิดที่ถูกต้อง (Remedial Insight)</span>
-</div>
-<div class="font-body-sm text-body-sm text-on-surface space-y-2 leading-relaxed">
-<p><strong>สาเหตุของความเข้าใจผิด:</strong> ผู้สอบสับสนเครื่องหมายของการทำงานภายนอก \( (W_{\text{ext}}) \) เทียบกับงานของสนามไฟฟ้า \( (W_{\text{field}}) \)</p>
-<p>1. <strong>นิยามของงานภายนอก:</strong> \( W_{\text{ext}} = \Delta U = q \Delta V = q (V_{\text{final}} - V_{\text{initial}}) \)</p>
-<p>2. <strong>แทนค่าความต่างศักย์:</strong> แผ่นลบมีศักย์ต่ำกว่าแผ่นบวก ดังนั้น \( V_{\text{final}} - V_{\text{initial}} = -200 \, \text{V} \)</p>
-<p>3. <strong>คำนวณ:</strong> \( W_{\text{ext}} = (-2.0 \times 10^{-6} \, \text{C}) \times (-200 \, \text{V}) = +4.0 \times 10^{-4} \, \text{J} \)</p>
-<p>เครื่องหมายเป็น <strong>บวก</strong> เนื่องจากแรงภายนอกต้องทำงานเพื่อผลักประจุลบไปยังบริเวณที่มีศักย์ไฟฟ้าต่ำกว่า (ต้านแรงผลักของสนาม)</p>
-</div>
-</div>
-</div>
-</div>
-<!-- Instructor Consultation & Support Callout Banner -->
-<div class="rounded-xl bg-surface-container-low p-space-lg shadow-sm flex flex-col md:flex-row items-center justify-between gap-space-md">
-<div class="flex items-center gap-space-md">
-<div class="w-12 h-12 rounded-full bg-primary flex-shrink-0 flex items-center justify-center text-on-primary">
-<span class="material-symbols-outlined text-[24px]">support_agent</span>
-</div>
-<div>
-<span class="font-headline-sm text-headline-sm text-on-surface">มีข้อสงสัยเกี่ยวกับผลคะแนนหรือแนวทางการเฉลย?</span>
-<p class="font-body-sm text-body-sm text-on-surface-variant">คุณสามารถส่งคำถามโดยตรงถึงอาจารย์ผู้สอนประจำวิชา พร้อมแนบรหัสข้อที่ต้องการปรึกษาได้ทันที</p>
-</div>
-</div>
-<div class="flex items-center gap-space-sm flex-shrink-0">
-<button class="px-space-md py-2.5 rounded-lg bg-surface-container hover:bg-surface-container-high text-on-surface font-label-lg text-label-lg flex items-center gap-space-xs transition-colors shadow-sm" type="button">
-<span class="material-symbols-outlined text-[18px]">history_edu</span>
-<span>ยื่นคำร้องขอตรวจซ้ำ</span>
-</button>
-<button class="px-space-md py-2.5 rounded-lg bg-primary hover:bg-primary-container text-on-primary font-label-lg text-label-lg flex items-center gap-space-xs transition-colors shadow-sm" type="button">
-<span class="material-symbols-outlined text-[18px]">chat</span>
-<span>ติดต่ออาจารย์ผู้สอน</span>
-</button>
-</div>
-</div>
-</div>
-</div></template><footer class="w-full bg-surface-container-lowest shadow-[0_1px_8px_rgba(0,0,0,0.04)] py-space-lg"><div class="w-full px-margin flex flex-col md:flex-row items-center justify-between gap-space-md"><div class="flex items-center gap-space-sm"><span class="font-headline-sm text-headline-sm text-primary">ExamFlow</span><span class="font-label-md text-label-md text-on-surface-variant">| แพลตฟอร์มการประเมินและการทดสอบมาตรฐานออนไลน์</span></div><div class="font-label-md text-label-md text-on-surface-variant">© 2025 ExamFlow Platform. All rights reserved. Google Workspace for Education Certified.</div></div></footer><script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.min.js"></script><script src="/app.js"></script></body></html>
+// ---------- API client ----------
+let token=localStorage.getItem('examhub.token')||null;
+async function api(p,opt={}){
+  const h={};let body=opt.body;
+  if(body&&!(body instanceof FormData)){h['Content-Type']='application/json';body=JSON.stringify(body)}
+  if(token)h['Authorization']='Bearer '+token;
+  const r=await fetch(p,{method:opt.method||(body?'POST':'GET'),headers:h,body});
+  let j=null;try{j=await r.json()}catch(e){}
+  if(!r.ok)throw new Error((j&&j.error)||'เกิดข้อผิดพลาด ('+r.status+')');
+  return j;
+}
+async function uploadImg(file){
+  const fd=new FormData();fd.append('image',file);
+  return (await api('/api/upload',{body:fd})).url;
+}
+
+// ---------- App state ----------
+let me=null,sets=[],view='home',cat='ทั้งหมด',X=null,R=null,tm=null;
+let resultsList=[],adminUsers=[],edSet=null,EID=null,QID=null,edQ=null,CB=null,IMP=[],SDIRTY=false,AK=[];
+function markDirty(){SDIRTY=true;document.querySelectorAll('.ssaveBtn').forEach(b=>{b.classList.add('pri');b.textContent='💾 บันทึกการเปลี่ยนแปลง'});const bar=$('#dirtyBar');if(bar)bar.style.display=''}
+let socket=null,LIVE=null,liveTick=null;
+
+function modal(h){closeM();const d=document.createElement('div');d.className='ov';d.id='ov';d.innerHTML='<div class="md">'+h+'</div>';document.body.appendChild(d)}
+const closeM=()=>{const o=$('#ov');o&&o.remove()};
+function toast(m){const t=document.createElement('div');t.className='toast';t.textContent=m;document.body.appendChild(t);setTimeout(()=>t.remove(),2400)}
+function ask(msg,fn,label='ยืนยัน'){CB=fn;modal(`<h3>${msg}</h3><div class="foot"><span class="sp"></span><button class="btn" data-a="cm">ยกเลิก</button><button class="btn pri" data-a="cb">${label}</button></div>`)}
+const adm=()=>me&&me.role==='admin';
+const fmt=s=>String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0');
+const myA=x=>x.type==='mc'?(x.given==null?'—':(x.choices[x.given]?(L[x.given]+'. '+x.choices[x.given].text):'—')):((x.given&&String(x.given).trim())?x.given:'—');
+
+// ---------- Boot ----------
+async function boot(){
+  if(token){try{const r=await api('/api/auth/me');me=r.user}catch(e){token=null;localStorage.removeItem('examhub.token')}}
+  await loadSets();render();
+}
+async function loadSets(){try{sets=await api('/api/sets')}catch(e){sets=[]}}
+
+// ---------- Views ----------
+const head=()=>`<header><div class="hd"><div class="brand" data-a="go" data-v="home"><i>E</i>ExamHub</div><nav>${[['home','ข้อสอบ'],['live','ห้องสอบสด'],['hist','ผลสอบ'],...(adm()?[['admin','⚙ ระบบหลังบ้าน']]:[])].map(([k,l])=>`<button class="nv ${view===k||(k==='admin'&&view==='edit')?'on':''}" data-a="go" data-v="${k}">${l}</button>`).join('')}</nav><div class="usr">${me?`<span class="av">${esc(me.name[0])}</span><span class="sm mut">${esc(me.name)}</span><button class="btn sm ghost" data-a="out">ออกจากระบบ</button>`:`<button class="btn sm pri" data-a="authm">เข้าสู่ระบบ</button>`}</div></div></header>`;
+
+const V={};
+V.home=()=>{const cats=['ทั้งหมด',...new Set(sets.map(s=>s.cat))],l=sets.filter(s=>cat==='ทั้งหมด'||s.cat===cat);
+return `<h2>${me?'สวัสดี '+esc(me.name)+' 👋':'สวัสดี 👋'}</h2><p class="mut">เลือกชุดข้อสอบที่ต้องการทำ — ทำได้เลยแม้ไม่ได้เข้าสู่ระบบ</p><div class="chips">${cats.map(c=>`<button class="chip ${c===cat?'on':''}" data-a="cat" data-v="${esc(c)}">${esc(c)}</button>`).join('')}</div><div class="grid">${l.map(s=>`<div class="card set"><span class="tag">${esc(s.cat)}</span><h3>${esc(s.title)}</h3><p class="mut sm">${esc(s.desc||'')}</p><div class="meta">📄 ${s.qCount} ข้อ (ปรนัย ${s.mcCount} · อัตนัย ${s.saCount}) · ⏱ ${s.time?s.time+' นาที':'ไม่จำกัดเวลา'}</div><div class="setbtns"><button class="btn pri" data-a="setup" data-v="${s.id}" ${s.qCount?'':'disabled'}>เริ่มทำข้อสอบ</button>${me&&s.mcCount?`<button class="btn live" data-a="hostRoom" data-v="${s.id}">🔴 ชวนเพื่อนเล่นสด</button>`:''}</div></div>`).join('')||'<p class="mut">ยังไม่มีข้อสอบ</p>'}</div>`};
+
+V.setup=null; // handled via modal, see A.setup
+
+V.exam=()=>{const q=X.qs[X.i],n=X.qs.length,fbk=X.fb[q.id],a=X.ans[q.id],pr=X.mode==='p';let b;
+if(q.type==='mc')b=q.choices.map((c,k)=>`<label class="opt ${pr&&fbk?(k===fbk.rightIdx?'ok':(a===k?'bad':'')):''}"><input type="radio" name="o" ${a===k?'checked':''} ${fbk?'disabled':''} data-a="pick" data-v="${k}">${c.image?`<img class="thumb" src="${esc(c.image)}">`:''}<b>${L[k]}</b><span>${esc(c.text||'')}</span></label>`).join('');
+else b=`<input class="inp" id="sa" placeholder="พิมพ์คำตอบของคุณ" autocomplete="off" value="${esc(a||'')}" ${fbk?'disabled':''} oninput="X.ans['${q.id}']=this.value" onkeydown="if(event.key==='Enter')A.chk()">`;
+const fb=fbk?`<div class="fb ${fbk.ok?'ok':'bad'}">${fbk.ok?'✓ ถูกต้อง':'✗ ยังไม่ถูก · เฉลย: '+esc(fbk.rightAnswer)}${fbk.explanation?`<small>${esc(fbk.explanation)}</small>`:''}</div>`:'';
+const last=X.i===n-1;
+return `<div class="xbar"><h3>${esc(X.title)}</h3><span class="pill" id="tm">--:--</span><button class="btn pri" data-a="sub">ส่งข้อสอบ</button></div><div class="prog"><div style="width:${(X.i+1)/n*100}%"></div></div>
+<div class="exl"><div class="card">${q.section_note?`<div class="fb" style="background:var(--goldb);color:var(--gold);font-weight:600;white-space:pre-line;margin-bottom:12px">📑 ${esc(q.section_note)}</div>`:''}<div class="qn">ข้อที่ ${X.i+1} / ${n} · ${q.type==='mc'?'ปรนัย':'อัตนัย (คำตอบตายตัว)'}</div>${q.q_image?`<img class="qimg" src="${esc(q.q_image)}">`:''}<div class="qt">${esc(q.q)}</div>${b}${fb}
+<div class="foot"><button class="btn" data-a="pv" ${X.i?'':'disabled'}>← ก่อนหน้า</button>${pr&&q.type==='sa'&&!fbk?'<button class="btn pri" data-a="chk">ตรวจคำตอบ</button>':''}<button class="btn ghost" data-a="fl">${X.flag[q.id]?'🚩 ยกเลิกปักธง':'🏳 ปักธงทบทวน'}</button><span class="sp"></span><button class="btn pri" data-a="${last?'sub':'nx'}">${last?'ส่งข้อสอบ':'ถัดไป →'}</button></div></div>
+<aside class="card"><div class="sec">แผนผังข้อสอบ</div><div class="pal">${X.qs.map((x,i)=>`<button class="pb ${i===X.i?'cur':X.ans[x.id]!=null&&X.ans[x.id]!==''?'ans':''} ${X.flag[x.id]?'fl':''}" data-a="jp" data-v="${i}">${i+1}</button>`).join('')}</div><div style="display:flex;margin-top:14px;padding-top:14px;border-top:1px solid var(--line)"><div class="pstat"><b style="color:var(--pri)">${Object.values(X.ans).filter(v=>v!==''&&v!=null).length}/${n}</b><span>ตอบแล้ว</span></div><div class="pstat" style="border-left:1px solid var(--line)"><b style="color:var(--gold)">${Object.values(X.flag).filter(Boolean).length}</b><span>ปักธง</span></div></div><div class="lgd" style="margin-top:12px;text-align:center">${pr?'โหมดฝึกฝน · เฉลยทันที':'โหมดสอบจริง · เฉลยหลังส่ง'}</div></aside></div>`};
+
+V.result=()=>{const p=Math.round(R.score/R.total*100);
+return `<div class="card sc"><div class="ring" style="--p:${p}"><div>${p}%</div></div><div><h2>${p>=60?'ผ่านเกณฑ์ 🎉':'ยังไม่ผ่านเกณฑ์'}</h2><div>${esc(R.title)}</div><div class="mut">ได้ ${R.score} / ${R.total} คะแนน · ใช้เวลา ${fmt(R.sec)} · ${R.mode==='m'?'โหมดสอบจริง':'โหมดฝึกฝน'}${R.mode==='m'&&R.away?` · <span style="color:var(--warn)">⚠ ออกจากหน้าจอ ${R.away} ครั้งระหว่างสอบ</span>`:''}</div><div class="foot"><button class="btn pri" data-a="go" data-v="home">ทำชุดอื่น</button></div></div></div>
+${R.detail.map((x,i)=>`<div class="card rv ${x.correct?'ok':'bad'}"><div class="qn">ข้อ ${i+1} · ${x.correct?'ถูก':'ผิด'}</div><div class="qt">${esc(x.q)}</div><div>คำตอบของคุณ: <b>${esc(myA(x))}</b></div>${x.correct?'':`<div>เฉลย: <b style="color:var(--ok)">${esc(x.rightAnswer)}</b></div>`}${x.explanation?`<div class="mut sm" style="margin-top:6px">💡 ${esc(x.explanation)}</div>`:''}</div>`).join('')}`};
+
+V.hist=()=>{if(!me)return `<h2>ประวัติผลสอบ</h2><p class="mut">เข้าสู่ระบบเพื่อบันทึกและดูประวัติผลสอบของคุณ (การทำข้อสอบแบบผู้เยี่ยมชมจะไม่ถูกผูกกับบัญชี)</p><button class="btn pri" data-a="authm">เข้าสู่ระบบ</button>`;
+return `<div class="row"><h2>ประวัติผลสอบ</h2>${adm()?`<label class="sm mut"><input type="checkbox" id="hall" onchange="A.histAll(this.checked)"> แสดงของทุกคน</label>`:''}</div>${resultsList.length?`<div class="card"><table><tr><th>ชุดข้อสอบ</th>${adm()?'<th>ผู้สอบ</th>':''}<th>คะแนน</th><th>วันที่</th><th></th></tr>${resultsList.map(r=>`<tr><td class="wrap">${esc(r.title)}</td>${adm()?`<td>${esc(r.email||'-')}</td>`:''}<td>${r.score}/${r.total} (${Math.round(r.score/r.total*100)}%)</td><td>${new Date(r.date).toLocaleString('th-TH')}</td><td><button class="btn sm" data-a="open" data-v="${r.id}">ดูเฉลย</button></td></tr>`).join('')}</table></div>`:'<p class="mut">ยังไม่มีประวัติการสอบ</p>'}`};
+
+V.admin=()=>{const nq=sets.reduce((n,s)=>n+s.qCount,0);
+return `<div class="row"><div><h2>ระบบหลังบ้าน</h2><div class="mut sm">จัดการชุดข้อสอบ ข้อสอบ และผู้ใช้งาน</div></div><button class="btn pri" data-a="sadd">+ เพิ่มชุดข้อสอบ</button></div><div class="stats"><div class="card stat"><b>${sets.length}</b><span>ชุดข้อสอบ</span></div><div class="card stat"><b>${nq}</b><span>ข้อสอบทั้งหมด</span></div><div class="card stat"><b>${adminUsers.length}</b><span>ผู้ใช้งาน</span></div></div>
+<h3 style="margin-top:24px">ชุดข้อสอบ</h3><div class="card"><table><tr><th>ชื่อชุด</th><th>ประเภท</th><th>ข้อ</th><th>สถานะ</th><th></th></tr>${sets.map(s=>`<tr><td class="wrap">${esc(s.title)}</td><td>${esc(s.cat)}</td><td>${s.qCount}</td><td>${s.is_public?'สาธารณะ':'ซ่อน'}</td><td style="white-space:nowrap"><button class="btn sm" data-a="sed" data-v="${s.id}">จัดการข้อสอบ</button> <button class="btn sm del" data-a="sdel" data-v="${s.id}">ลบ</button></td></tr>`).join('')}</table></div>
+<h3 style="margin-top:24px">ผู้ใช้งาน</h3><div class="card"><table><tr><th>อีเมล</th><th>สิทธิ์</th><th></th></tr>${adminUsers.map(u=>`<tr><td>${esc(u.email)}</td><td>${u.role==='admin'?'ผู้ดูแล':'ผู้สอบ'}</td><td>${u.id===me.id?'':`<button class="btn sm" data-a="role" data-v="${u.id}|${u.role}">${u.role==='admin'?'ปรับเป็นผู้สอบ':'ตั้งเป็นผู้ดูแล'}</button>`}</td></tr>`).join('')}</table></div>`};
+
+V.edit=()=>{const s=edSet,catOpts=[...new Set([...CATS,s.cat])];
+SDIRTY=false;
+return `<div class="row"><h2>แก้ไขชุดข้อสอบ</h2><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" data-a="go" data-v="admin">← กลับ</button><button class="btn ssaveBtn" data-a="ssave">💾 บันทึกแล้ว</button></div></div><div class="fb" id="dirtyBar" style="display:none;background:var(--goldb);color:var(--gold);margin-bottom:12px">มีการแก้ไขที่ยังไม่ได้บันทึก — กด "บันทึกการเปลี่ยนแปลง" เพื่อจัดเก็บ</div><div class="card"><div class="two"><div><label class="f">ชื่อชุดข้อสอบ</label><input class="inp" value="${esc(s.title)}" oninput="A.setField('title',this.value)"></div><div><label class="f">ประเภท</label><select class="inp" onchange="A.setField('cat',this.value)">${catOpts.map(c=>`<option value="${esc(c)}" ${s.cat===c?'selected':''}>${esc(c)}</option>`).join('')}</select></div><div><label class="f">เวลา (นาที)</label><input class="inp" type="number" min="0" value="${s.time}" oninput="A.setField('time',+this.value||0)"></div></div><label class="f">คำอธิบายสั้น ๆ</label><input class="inp" value="${esc(s.desc||'')}" oninput="A.setField('desc',this.value)"><label class="f"><input type="checkbox" ${s.is_public?'checked':''} onchange="A.setField('is_public',this.checked)"> เผยแพร่แบบสาธารณะ (ทุกคนเห็นในหน้าแรก)</label><div class="foot"><span class="sp"></span><button class="btn ssaveBtn" data-a="ssave">💾 บันทึกการเปลี่ยนแปลง</button></div></div>
+<div class="row" style="margin-top:20px"><h3>ข้อสอบ (${s.questions.length} ข้อ)</h3><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" data-a="imp">📥 นำเข้าจากไฟล์</button><button class="btn" data-a="akOpen">📋 วางเฉลยแยก</button><button class="btn pri" data-a="qed" data-v="">+ เพิ่มข้อสอบ</button></div></div><div class="card"><table>${s.questions.map((q,i)=>(q.section_note?`<tr><td colspan="3" style="background:var(--goldb);color:var(--gold);font-weight:600;white-space:pre-line">📑 ${esc(q.section_note)}</td></tr>`:'')+`<tr><td>${i+1}</td><td class="wrap">${q.q_image?'🖼 ':''}${esc(q.q)}<div class="mut sm">${q.type==='mc'?'ปรนัย':'อัตนัย'} · เฉลย: ${esc(q.type==='mc'?(q.choices[q.answer]?.text||''):q.answer.join(' / '))}</div></td><td style="white-space:nowrap"><button class="btn sm" data-a="qed" data-v="${q.id}">แก้ไข</button> <button class="btn sm del" data-a="qdel" data-v="${q.id}">ลบ</button></td></tr>`).join('')||'<tr><td class="mut">ยังไม่มีข้อสอบในชุดนี้</td></tr>'}</table></div>`};
+
+// ---------- Live room view ----------
+function timeLeftPct(){if(!LIVE||!LIVE.question)return 0;const el=Date.now()-LIVE.question.startedAt;return Math.max(0,100-el/(LIVE.question.seconds*1000)*100)}
+V.live=()=>{if(!LIVE)return `<h2>ห้องสอบสด</h2><p class="mut">เข้าร่วมห้องด้วย PIN จากเพื่อน หรือเปิดห้องใหม่จากชุดข้อสอบของคุณในหน้าแรก</p><div class="card" style="max-width:380px"><label class="f">PIN ห้อง (6 หลัก)</label><input class="inp" id="jpin" inputmode="numeric" maxlength="6" placeholder="123456"><label class="f">ชื่อเล่นของคุณ</label><input class="inp" id="jnick" placeholder="เช่น น้องเอ" maxlength="24"><button class="btn pri" data-a="joinRoom" style="width:100%">เข้าร่วมห้อง</button></div>`;
+const L2=LIVE;
+if(L2.role==='host'){
+ if(L2.status==='lobby')return `<div class="card lgc" style="max-width:520px;margin:auto"><h2>${esc(L2.title)}</h2><p class="mut">บอก PIN นี้ให้เพื่อนพิมพ์เพื่อเข้าร่วม</p><div class="pin">${L2.pin}</div><div class="plist">${(L2.players||[]).map(p=>`<span class="ptag">${esc(p.nickname)}</span>`).join('')||'<span class="mut sm">ยังไม่มีใครเข้าร่วม…</span>'}</div><button class="btn pri" style="width:100%" data-a="liveStart" ${(L2.players||[]).length?'':'disabled'}>เริ่มเล่น (${(L2.players||[]).length} คน)</button></div>`;
+ if(L2.status==='question'){const q=L2.question,answered=(L2.players||[]).length;return `<div class="card"><div class="row"><h3>ข้อ ${q.qIndex+1} / ${q.total}</h3><button class="btn" data-a="liveNext">เฉลยตอนนี้</button></div><div class="timerbar"><div style="width:${timeLeftPct()}%"></div></div>${q.section_note?`<div class="fb" style="background:var(--goldb);color:var(--gold);font-weight:600;white-space:pre-line">📑 ${esc(q.section_note)}</div>`:''}${q.q_image?`<img class="qimg" src="${esc(q.q_image)}">`:''}<div class="qt">${esc(q.q)}</div><p class="mut">ผู้เล่นกำลังตอบ… (โฮสต์ไม่เห็นคำตอบจนกว่าจะเฉลย)</p></div>`;}
+ if(L2.status==='reveal'){const rv=L2.lastReveal;return `<div class="card"><h3>เฉลย: ${esc(rv.rightAnswer)}</h3>${rv.explanation?`<p class="mut">${esc(rv.explanation)}</p>`:''}<div class="sec">กระดานคะแนน</div>${rv.leaderboard.map((p,i)=>`<div class="lbrow"><span>${i+1}. ${esc(p.nickname)}</span><b>${p.score}</b></div>`).join('')}<div class="foot"><span class="sp"></span><button class="btn pri" data-a="liveNext">ข้อถัดไป / ดูผลสรุป →</button></div></div>`;}
+ if(L2.status==='ended')return `<div class="card"><h2>🏁 จบเกม!</h2><div class="sec">อันดับสุดท้าย</div>${L2.leaderboard.map((p,i)=>`<div class="lbrow"><span>${i+1}. ${esc(p.nickname)}</span><b>${p.score}</b></div>`).join('')}<div class="foot"><button class="btn pri" data-a="go" data-v="home">กลับหน้าแรก</button></div></div>`;
+}else{
+ if(L2.status==='lobby')return `<div class="card lgc" style="max-width:420px;margin:auto"><h2>${esc(L2.title)}</h2><p class="mut">เข้าร่วมในชื่อ <b>${esc(L2.nickname)}</b> แล้ว — รอโฮสต์เริ่มเกม…</p></div>`;
+ if(L2.status==='question'){const q=L2.question;
+   if(L2.myAnswered)return `<div class="card lgc" style="max-width:420px;margin:auto"><h2>ส่งคำตอบแล้ว ✅</h2><p class="mut">รอผู้เล่นคนอื่น…</p></div>`;
+   const colors=['c0','c1','c2','c3'];
+   return `<div class="card"><div class="timerbar"><div style="width:${timeLeftPct()}%"></div></div>${q.section_note?`<div class="fb" style="background:var(--goldb);color:var(--gold);font-weight:600;white-space:pre-line">📑 ${esc(q.section_note)}</div>`:''}${q.q_image?`<img class="qimg" src="${esc(q.q_image)}">`:''}<div class="qt">${esc(q.q)}</div><div class="livebtns">${(q.choices||[]).map((c,i)=>`<button class="lbtn ${colors[i%4]}" data-a="liveAnswer" data-v="${i}">${c.image?`<img src="${esc(c.image)}">`:''}<span>${L[i]}. ${esc(c.text||'')}</span></button>`).join('')}</div></div>`;}
+ if(L2.status==='reveal'){const rv=L2.lastReveal;return `<div class="card lgc" style="max-width:420px;margin:auto"><h2>${L2.myLastCorrect?'ถูกต้อง! 🎉':'ยังไม่ถูก'}</h2>${L2.myLastCorrect?`<p>+${L2.myLastPoints} คะแนน</p>`:''}<p class="mut">เฉลย: ${esc(rv.rightAnswer)}</p><div class="sec">อันดับปัจจุบัน</div>${rv.leaderboard.slice(0,5).map((p,i)=>`<div class="lbrow"><span>${i+1}. ${esc(p.nickname)}</span><b>${p.score}</b></div>`).join('')}</div>`;}
+ if(L2.status==='ended')return `<div class="card"><h2>🏁 จบเกม!</h2><div class="sec">อันดับสุดท้าย</div>${L2.leaderboard.map((p,i)=>`<div class="lbrow ${p.nickname===L2.nickname?'':''}"><span>${i+1}. ${esc(p.nickname)}</span><b>${p.score}</b></div>`).join('')}<div class="foot"><button class="btn pri" data-a="go" data-v="home">กลับหน้าแรก</button></div></div>`;
+}};
+
+function render(){const a=$('#app');a.innerHTML=(view==='exam'||view==='live'&&LIVE&&LIVE.status==='question'?'':head())+`<main>${V[view]()}</main>`;if(view==='exam')tick();window.scrollTo(0,0)}
+function tick(){if(!X)return;const e=$('#tm');if(!e)return;if(X.end){const l=Math.max(0,Math.round((X.end-Date.now())/1e3));e.textContent=fmt(l);e.classList.toggle('warn',l<60);if(!l)A.sub(true)}else e.textContent=fmt(Math.round((Date.now()-X.t0)/1e3))}
+
+// ---------- Actions ----------
+const A={
+go(v){if(X&&view==='exam')return;if(view==='edit'&&SDIRTY&&!confirm('มีการแก้ไขที่ยังไม่ได้บันทึก ต้องการออกโดยไม่บันทึกใช่หรือไม่?'))return;SDIRTY=false;view=v;render();if(v==='hist')A.histAll(false);if(v==='admin')A.loadAdmin()},
+cat(v){cat=v;render()},cm:closeM,cb(){closeM();CB&&CB()},
+authm(){modal(`<h3>เข้าสู่ระบบ / สมัครสมาชิก</h3><div class="two" style="grid-template-columns:1fr"><label class="f">อีเมล</label><input class="inp" id="aem" type="email"><label class="f">รหัสผ่าน</label><input class="inp" id="apw" type="password"><label class="f" id="anmL" style="display:none">ชื่อที่แสดง</label><input class="inp" id="anm" style="display:none" placeholder="ชื่อของคุณ"></div><div class="fb" id="aerr" style="display:none"></div><div class="foot"><span class="sp"></span><button class="btn" data-a="cm">ยกเลิก</button><button class="btn" data-a="authSubmit" data-v="register">สมัครสมาชิกใหม่</button><button class="btn pri" data-a="authSubmit" data-v="login">เข้าสู่ระบบ</button></div>`)},
+async authSubmit(mode){const email=$('#aem').value.trim(),pw=$('#apw').value,name=$('#anm').value.trim(),err=$('#aerr');
+ if(mode==='register'){$('#anmL').style.display='';$('#anm').style.display='';if(!name&&!$('#anm').dataset.asked){$('#anm').dataset.asked='1';return}}
+ try{const r=await api(mode==='register'?'/api/auth/register':'/api/auth/login',{body:mode==='register'?{email,password:pw,name}:{email,password:pw}});
+   token=r.token;localStorage.setItem('examhub.token',token);me=r.user;closeM();await loadSets();if(adm())await A.loadAdmin();view='home';render();toast('ยินดีต้อนรับ '+r.user.name)}
+ catch(e){err.style.display='';err.className='fb bad';err.textContent=e.message}},
+out(){token=null;me=null;localStorage.removeItem('examhub.token');if(socket){socket.disconnect();socket=null}LIVE=null;view='home';render()},
+histAll(all){api('/api/results'+(adm()&&all?'?all=1':'')).then(r=>{resultsList=r;render()}).catch(()=>{})},
+async loadAdmin(){if(!adm())return;try{adminUsers=await api('/api/admin/users')}catch(e){}render()},
+role(v){const [id,role]=v.split('|');api('/api/admin/users/'+id+'/role',{method:'PUT',body:{role:role==='admin'?'user':'admin'}}).then(()=>A.loadAdmin())},
+async open(id){R=await api('/api/results/'+id);view='result';render()},
+
+async sadd(){try{const s=await api('/api/admin/sets',{body:{title:'ชุดข้อสอบใหม่',cat:'ทั่วไป',time:10,desc:''}});await loadSets();edSet=await api('/api/admin/sets/'+s.id);EID=s.id;SDIRTY=false;view='edit';render()}catch(e){toast(e.message)}},
+async sed(id){edSet=await api('/api/admin/sets/'+id);EID=id;SDIRTY=false;view='edit';render()},
+sdel(id){ask('ลบชุดข้อสอบนี้?',async()=>{await api('/api/admin/sets/'+id,{method:'DELETE'});await loadSets();render()},'ลบ')},
+setField(k,v){edSet[k]=v;markDirty()},
+async ssave(){try{await api('/api/admin/sets/'+EID,{method:'PUT',body:{title:edSet.title,cat:edSet.cat,time:edSet.time,desc:edSet.desc,is_public:edSet.is_public}});await loadSets();SDIRTY=false;render();toast('บันทึกการเปลี่ยนแปลงแล้ว')}catch(e){toast(e.message)}},
+qdel(id){ask('ลบข้อสอบข้อนี้?',async()=>{if(SDIRTY)await A.ssave();await api('/api/admin/questions/'+id,{method:'DELETE'});edSet=await api('/api/admin/sets/'+EID);await loadSets();render()},'ลบ')},
+
+qed(id){QID=id||null;const src=id?edSet.questions.find(x=>String(x.id)===String(id)):null;
+ edQ=src?JSON.parse(JSON.stringify(src)):{type:'mc',q:'',q_image:null,choices:[{text:'',image:null},{text:'',image:null}],answer:0,saAnswer:'',explanation:'',section_note:''};
+ if(edQ.type==='sa')edQ.saAnswer=(edQ.answer||[]).join('\n');
+ modal(A.qEditorHtml())},
+qEditorHtml(){const q=edQ;
+ const mcBlock=()=>`<label class="f">ตัวเลือกคำตอบ (แต่ละข้อใส่ข้อความและ/หรือรูปภาพได้)</label>${(q.choices||[]).map((c,i)=>`<div class="crow"><b style="padding-top:8px">${L[i]}</b><div style="flex:1"><input class="inp" placeholder="ข้อความตัวเลือก (เว้นว่างได้ถ้าใช้รูป)" value="${esc(c.text||'')}" oninput="edQ.choices[${i}].text=this.value">${c.image?`<img class="thumb-sm" src="${esc(c.image)}"> <button class="btn sm del" type="button" onclick="edQ.choices[${i}].image=null;A.refreshQ()">ลบรูป</button>`:`<input type="file" accept="image/*" onchange="A.qImg(this.files[0],'c',${i})">`}</div><label style="display:flex;align-items:center;gap:4px;white-space:nowrap"><input type="radio" name="qans" ${q.answer===i?'checked':''} onchange="edQ.answer=${i}"> ถูกต้อง</label>${q.choices.length>2?`<button class="btn sm del" type="button" onclick="edQ.choices.splice(${i},1);if(edQ.answer>=edQ.choices.length)edQ.answer=0;A.refreshQ()">✕</button>`:''}</div>`).join('')}<button class="btn sm" type="button" onclick="edQ.choices.push({text:'',image:null});A.refreshQ()">+ เพิ่มตัวเลือก</button>`;
+ const saBlock=()=>`<label class="f">คำตอบที่ยอมรับ (1 บรรทัดต่อ 1 คำตอบ ไม่สนตัวพิมพ์เล็ก/ใหญ่)</label><textarea class="inp" rows="3" oninput="edQ.saAnswer=this.value">${esc(q.saAnswer||'')}</textarea>`;
+ return `<h3>${QID?'แก้ไข':'เพิ่ม'}ข้อสอบ</h3>
+ <label class="f">คำอธิบายช่วงตอน (ไม่บังคับ)</label><textarea class="inp" rows="2" placeholder="เช่น ตอนที่ 1: เลือกความหมายที่ถูกต้อง (ข้อ 1-10) — จะแสดงเป็นหัวข้อก่อนข้อนี้" oninput="edQ.section_note=this.value">${esc(q.section_note||'')}</textarea>
+ <label class="f">รูปแบบคำตอบ</label><select class="inp" onchange="edQ.type=this.value;if(edQ.type==='mc'&&(!edQ.choices||!edQ.choices.length)){edQ.choices=[{text:'',image:null},{text:'',image:null}];edQ.answer=0}A.refreshQ()"><option value="mc" ${q.type==='mc'?'selected':''}>ปรนัย (เลือกตัวเลือก) — รองรับห้องสอบสด</option><option value="sa" ${q.type==='sa'?'selected':''}>อัตนัย (พิมพ์ตอบ คำตอบตายตัว)</option></select>
+ <label class="f">โจทย์</label><textarea class="inp" rows="2" oninput="edQ.q=this.value">${esc(q.q)}</textarea>
+ <label class="f">รูปประกอบโจทย์ (ไม่บังคับ)</label>${q.q_image?`<div><img class="thumb-sm" style="width:110px;height:110px" src="${esc(q.q_image)}"> <button class="btn sm del" type="button" onclick="edQ.q_image=null;A.refreshQ()">ลบรูป</button></div>`:`<input type="file" accept="image/*" onchange="A.qImg(this.files[0],'q')">`}
+ ${q.type==='mc'?mcBlock():saBlock()}
+ <label class="f">คำอธิบายเฉลย</label><textarea class="inp" rows="2" oninput="edQ.explanation=this.value">${esc(q.explanation||'')}</textarea>
+ <div class="foot"><span class="sp"></span><button class="btn" data-a="cm">ยกเลิก</button><button class="btn pri" data-a="qsave">บันทึก</button></div>`},
+refreshQ(){modal(A.qEditorHtml())},
+async qImg(file,kind,idx){if(!file)return;try{const url=await uploadImg(file);if(kind==='q')edQ.q_image=url;else edQ.choices[idx].image=url;A.refreshQ()}catch(e){toast(e.message)}},
+async qsave(){const q=edQ,body={type:q.type,q:(q.q||'').trim(),q_image:q.q_image||null,explanation:(q.explanation||'').trim(),section_note:(q.section_note||'').trim()};
+ if(!body.q)return toast('กรุณากรอกโจทย์');
+ if(q.type==='mc'){body.choices=q.choices.map(c=>({text:(c.text||'').trim(),image:c.image||null}));if(body.choices.some(c=>!c.text&&!c.image))return toast('ทุกตัวเลือกต้องมีข้อความหรือรูปภาพ');body.answer=q.answer}
+ else{const a=(q.saAnswer||'').split('\n').map(x=>x.trim()).filter(Boolean);if(!a.length)return toast('ใส่คำตอบที่ถูกอย่างน้อย 1 คำตอบ');body.answer=a}
+ try{if(SDIRTY)await A.ssave();if(QID)await api('/api/admin/questions/'+QID,{method:'PUT',body});else await api('/api/admin/sets/'+EID+'/questions',{body});
+   edSet=await api('/api/admin/sets/'+EID);await loadSets();closeM();render()}catch(e){toast(e.message)}},
+
+// ---- Import questions from file ----
+imp(){IMP=[];modal(`<h3>นำเข้าข้อสอบจากไฟล์</h3><p class="mut sm">รองรับ Word (.docx), Excel (.xlsx/.xls/.csv), PDF, รูปภาพ (JPG/PNG/GIF/WEBP), Markdown และ .txt — ระบบจะใช้ AI ช่วยแยกโจทย์ ตัวเลือก และเฉลยให้อัตโนมัติ ทั้งปรนัยและอัตนัย</p><input class="inp" type="file" id="ifl" accept=".docx,.xlsx,.xls,.csv,.pdf,.txt,.md,image/*" onchange="A.impRun(this.files[0])"><div id="ist"></div>`)},
+async impRun(file){if(!file)return;const set=h=>{const e=$('#ist');if(e)e.innerHTML=h};
+ set('<div class="fb" style="background:var(--soft)">⏳ กำลังอ่านและแยกข้อสอบ… (อาจใช้เวลาถึง 1 นาทีสำหรับไฟล์รูปภาพ/PDF)</div>');
+ try{const fd=new FormData();fd.append('file',file);const r=await api('/api/admin/import',{body:fd});
+   IMP=r.questions.map(x=>({...x,on:true}));
+   set(A.impListHtml(r.source))}
+ catch(e){set(`<div class="fb bad">${esc(e.message)}</div>`)}},
+impListHtml(source){return `<div class="fb ok">พบ ${IMP.length} ข้อ (แยกโดย${esc(source)}) ตรวจสอบก่อนเพิ่มเข้าชุดข้อสอบ</div><div style="max-height:44vh;overflow:auto;margin-top:10px">${IMP.map((x,i)=>`<div style="margin-bottom:4px"><input class="inp" style="font-size:.82rem;padding:5px 10px;margin-bottom:2px;background:var(--goldb);color:var(--gold);border-color:transparent" placeholder="📑 คำอธิบายช่วงตอน (ไม่บังคับ) เช่น ตอนที่ 1: ... (ข้อ 1-10)" value="${esc(x.section_note||'')}" oninput="IMP[${i}].section_note=this.value"><label class="opt" style="align-items:flex-start;margin-bottom:0"><input type="checkbox" ${x.on?'checked':''} onchange="IMP[${i}].on=this.checked"><span><span class="tag">${x.t==='mc'?'ปรนัย':'อัตนัย'}</span> ${esc(x.q)}<div class="mut sm">${x.t==='mc'?x.ch.map((c,k)=>(k===x.a?'✅ ':'')+L[k]+'. '+esc(c)).join(' · '):'เฉลย: '+esc(x.a.join(' / '))}</div></span></label></div>`).join('')}</div><div class="foot"><span class="sp"></span><button class="btn" data-a="cm">ยกเลิก</button><button class="btn pri" data-a="impAdd">เพิ่มเข้าชุดข้อสอบ</button></div>`},
+async impAdd(){const sel=IMP.filter(x=>x.on).map(({on,...x})=>x);if(!sel.length)return toast('เลือกอย่างน้อย 1 ข้อ');
+ try{if(SDIRTY)await A.ssave();const r=await api('/api/admin/sets/'+EID+'/questions/bulk',{body:{questions:sel}});
+   edSet=await api('/api/admin/sets/'+EID);await loadSets();closeM();render();toast('เพิ่ม '+r.added+' ข้อแล้ว')}catch(e){toast(e.message)}},
+
+// ---- วางเฉลยแยกทั้งชุด (ไม่ต้องเปิดแก้ทีละข้อ) ----
+akOpen(){AK=[];modal(`<h3>วางเฉลยแยก</h3><p class="mut sm">ใช้สำหรับชุดข้อสอบที่มีหน้าเฉลยแยกต่างหาก (ไม่ได้เขียนติดกับโจทย์) วางข้อความเฉลยด้านล่าง ระบบจะจับคู่ "ลำดับข้อ" ในชุดนี้ (ตามลำดับที่แสดงในตาราง 1,2,3,...) กับตัวอักษรเฉลยให้อัตโนมัติ — รองรับทั้ง ก/ข/ค/ง, A/B/C/D หรือเลขตำแหน่ง 1/2/3/4 เช่น "1) ก  2) ง  3) ค" หรือ "1. A  2. B  3. C"</p><textarea class="inp" id="akt" rows="6" placeholder="วางข้อความเฉลยตรงนี้ เช่น&#10;1) ก   2) ง   3) ค   4) ข"></textarea><div id="akr"></div><div class="foot"><span class="sp"></span><button class="btn" data-a="cm">ยกเลิก</button><button class="btn pri" data-a="akPreview">ตรวจสอบก่อนบันทึก</button></div>`)},
+async akPreview(){const text=$('#akt').value;if(!text.trim())return toast('กรุณาวางข้อความเฉลยก่อน');
+ try{const r=await api('/api/admin/sets/'+EID+'/answers/preview',{body:{text}});
+   AK=r.preview.filter(p=>p.ok).map(p=>({...p,on:true}));
+   const skipped=r.preview.length-r.matched;
+   $('#akr').innerHTML=`<div class="fb ${AK.length?'ok':'bad'}">จับคู่ได้ ${r.matched}/${r.total} ข้อ${skipped?` (ข้าม ${skipped} ข้อ — ไม่ใช่ปรนัยหรือไม่พบเฉลยในข้อความที่วาง)`:''}</div>${AK.length?`<div style="max-height:40vh;overflow:auto;margin-top:10px">${AK.map((p,i)=>`<label class="opt" style="align-items:flex-start"><input type="checkbox" ${p.on?'checked':''} onchange="AK[${i}].on=this.checked"><span><b>ข้อ ${p.position}</b> ${esc(p.q)}<div class="mut sm">${p.choices.map((c,k)=>(k===p.proposedIndex?'✅ ':(k===p.currentIndex?'〰️ ':''))+L[k]+'. '+esc(c.text)).join(' · ')}${p.changed?' <b style="color:var(--gold)">(เปลี่ยนจากเดิม)</b>':''}</div></span></label>`).join('')}</div><div class="foot"><span class="sp"></span><button class="btn" data-a="cm">ยกเลิก</button><button class="btn pri" data-a="akApply">ยืนยันบันทึกเฉลย</button></div>`:''}`}
+ catch(e){$('#akr').innerHTML=`<div class="fb bad">${esc(e.message)}</div>`}},
+async akApply(){const sel=AK.filter(x=>x.on).map(x=>({id:x.id,index:x.proposedIndex}));if(!sel.length)return toast('เลือกอย่างน้อย 1 ข้อ');
+ try{const r=await api('/api/admin/sets/'+EID+'/answers/apply',{body:{updates:sel}});
+   edSet=await api('/api/admin/sets/'+EID);await loadSets();closeM();render();toast('อัปเดตเฉลย '+r.updated+' ข้อแล้ว')}catch(e){toast(e.message)}},
+
+setup(id){const s=sets.find(x=>x.id===id),nm=s.mcCount,ns=s.saCount;
+ modal(`<h3>${esc(s.title)}</h3><p class="mut sm">${s.qCount} ข้อ · ${s.time?s.time+' นาที':'ไม่จำกัดเวลา'}</p>${!me?`<label class="f">ชื่อที่ใช้แสดงผล (ทำในฐานะผู้เยี่ยมชม)</label><input class="inp" id="gname" placeholder="ชื่อของคุณ">`:''}<div class="sec">โหมดการสอบ</div><label class="opt"><input type="radio" name="md" value="m" checked><span><b style="display:inline">โหมดสอบจริง</b><br><small class="mut">จับเวลา · ดูเฉลยหลังส่งข้อสอบ</small></span></label><label class="opt"><input type="radio" name="md" value="p"><span><b style="display:inline">โหมดฝึกฝน</b><br><small class="mut">ไม่จับเวลา · ตรวจและดูเฉลยทีละข้อ</small></span></label><div class="sec">รูปแบบข้อสอบ</div><label class="opt"><input type="radio" name="fm" value="all" checked><span><b style="display:inline">แบบผสม</b> ปรนัย + อัตนัย<br><small class="mut">${s.qCount} ข้อ</small></span></label><label class="opt" ${nm?'':'style="opacity:.45"'}><input type="radio" name="fm" value="mc" ${nm?'':'disabled'}><span><b style="display:inline">ปรนัยล้วน</b><br><small class="mut">${nm} ข้อ</small></span></label><label class="opt" ${ns?'':'style="opacity:.45"'}><input type="radio" name="fm" value="sa" ${ns?'':'disabled'}><span><b style="display:inline">อัตนัยล้วน</b><br><small class="mut">${ns} ข้อ</small></span></label><div class="sec">ตัวเลือกเพิ่มเติม</div><label class="opt"><input type="checkbox" id="shf"><span>สลับลำดับข้อสอบ</span></label><div class="foot"><span class="sp"></span><button class="btn" data-a="cm">ยกเลิก</button><button class="btn pri" data-a="start" data-v="${id}">เริ่มสอบ</button></div>`)},
+async start(id){const md=$('input[name=md]:checked').value,fm=$('input[name=fm]:checked').value,shuffle=$('#shf').checked,gname=$('#gname');
+ if(gname&&!gname.value.trim())return toast('กรุณากรอกชื่อที่ใช้แสดงผล');
+ try{const r=await api('/api/exam/start',{body:{setId:id,mode:md,format:fm,shuffle}});
+   X={sid:r.sessionId,title:r.set.title,qs:r.questions,ans:{},flag:{},fb:{},i:0,mode:md,t0:Date.now(),end:md==='m'&&r.set.time?Date.now()+r.set.time*6e4:0,away:0,guestName:gname?gname.value.trim():null};
+   closeM();view='exam';render();clearInterval(tm);tm=setInterval(tick,1000)}catch(e){toast(e.message)}},
+pick(v){const q=X.qs[X.i];X.ans[q.id]=+v;if(X.mode==='p')A.checkAns(q.id,+v);render()},
+async chk(){const q=X.qs[X.i];if(X.mode!=='p'||X.fb[q.id])return;const v=$('#sa')?.value;if(!(v||'').trim())return toast('กรุณาพิมพ์คำตอบก่อน');X.ans[q.id]=v;await A.checkAns(q.id,v)},
+async checkAns(qid,val){try{const r=await api('/api/exam/'+X.sid+'/check',{body:{questionId:qid,answer:val}});X.fb[qid]={ok:r.ok,rightAnswer:r.rightAnswer,explanation:r.explanation,rightIdx:r.rightIndex};render()}catch(e){toast(e.message)}},
+nx(){X.i++;render()},pv(){X.i--;render()},jp(v){X.i=+v;render()},fl(){const id=X.qs[X.i].id;X.flag[id]=!X.flag[id];render()},
+sub(auto){const un=X.qs.filter(q=>X.ans[q.id]==null||X.ans[q.id]==='').length,fl=Object.values(X.flag).filter(Boolean).length;
+ if(auto)return A.finish();
+ ask(`ส่งข้อสอบหรือไม่?<div class="mut sm" style="font-weight:400;margin-top:6px">ยังไม่ได้ตอบ ${un} ข้อ · ปักธงไว้ ${fl} ข้อ</div>`,A.finish,'ส่งข้อสอบ')},
+async finish(){clearInterval(tm);closeM();try{const r=await api('/api/exam/'+X.sid+'/submit',{body:{answers:X.ans,sec:Math.round((Date.now()-X.t0)/1e3),away:X.away,guestName:X.guestName}});
+   R=r;X=null;view='result';render();if(me)A.histAll(false)}catch(e){toast(e.message)}},
+
+// ---- Live rooms ----
+connectSocket(){if(socket)return socket;socket=io({auth:{token:token||undefined},transports:['websocket']});
+ socket.on('room:players',list=>{if(LIVE){LIVE.players=list;render()}});
+ socket.on('room:question',q=>{if(LIVE){LIVE.status='question';LIVE.question=q;LIVE.myAnswered=false;LIVE.lastReveal=null;render();clearInterval(liveTick);liveTick=setInterval(()=>{if(LIVE&&LIVE.status==='question')render()},1000)}});
+ socket.on('room:reveal',d=>{if(LIVE){clearInterval(liveTick);LIVE.status='reveal';LIVE.lastReveal=d;render()}});
+ socket.on('room:ended',d=>{if(LIVE){clearInterval(liveTick);LIVE.status='ended';LIVE.leaderboard=d.leaderboard;render()}});
+ socket.on('room:hostLeft',()=>{if(LIVE){toast('ผู้เปิดห้องออกจากห้องแล้ว');LIVE=null;clearInterval(liveTick);view='home';render()}});
+ return socket},
+hostRoom(setId){if(!me)return toast('เข้าสู่ระบบก่อนเพื่อเปิดห้องสอบสด');const sk=A.connectSocket();
+ sk.emit('host:create',{setId},res=>{if(res.error)return toast(res.error);LIVE={role:'host',pin:res.pin,title:res.title,total:res.total,players:[],status:'lobby'};view='live';render()})},
+joinRoom(){const pin=$('#jpin')?.value.trim(),nick=$('#jnick')?.value.trim();if(!pin||!nick)return toast('กรอก PIN และชื่อเล่นให้ครบ');const sk=A.connectSocket();
+ sk.emit('player:join',{pin,nickname:nick},res=>{if(res.error)return toast(res.error);LIVE={role:'player',pin,title:res.title,nickname:nick,status:'lobby',myAnswered:false};view='live';render()})},
+liveStart(){socket.emit('host:start',{pin:LIVE.pin},res=>{res&&res.error&&toast(res.error)})},
+liveNext(){socket.emit('host:next',{pin:LIVE.pin},res=>{res&&res.error&&toast(res.error)})},
+liveAnswer(v){if(!LIVE||LIVE.myAnswered)return;LIVE.myAnswered=true;render();socket.emit('player:answer',{pin:LIVE.pin,answer:+v},res=>{if(res&&res.error){toast(res.error);return}LIVE.myLastCorrect=res.correct;LIVE.myLastPoints=res.points})},
+};
+document.addEventListener('click',e=>{const b=e.target.closest('[data-a]');if(b&&A[b.dataset.a])A[b.dataset.a](b.dataset.v)});
+window.addEventListener('beforeunload',e=>{if(SDIRTY){e.preventDefault();e.returnValue=''}});
+boot();
+</script>
+</body>
+</html>

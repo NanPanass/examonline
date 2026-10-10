@@ -1,4 +1,4 @@
-// server.js — ExamFlow backend (รวมจาก ExamHub)
+// server.js — ExamHub backend
 // - REST API สำหรับชุดข้อสอบ/ผู้ใช้/ผลสอบ (ฐานข้อมูลกลางบน Turso — ทุกคนเห็นชุดเดียวกัน)
 // - เฉลยข้อสอบไม่เคยถูกส่งไปฝั่ง client ระหว่างทำข้อสอบ ตรวจให้คะแนนที่ฝั่งเซิร์ฟเวอร์เท่านั้น
 // - Socket.io: ห้องสอบสดแบบ Kahoot (host เปิดห้อง ได้ PIN, เพื่อนพิมพ์ชื่อเล่น join, ตอบพร้อมกัน, กระดานคะแนนสด)
@@ -24,7 +24,6 @@ const db = require('./db');
 const { sign, hash, check, optionalAuth, requireAuth, requireAdmin } = require('./auth');
 
 const SECRET = process.env.JWT_SECRET || 'examhub-dev-secret-change-me-in-production';
-if (!process.env.JWT_SECRET && process.env.NODE_ENV === 'production') { console.error('ต้องตั้งค่า JWT_SECRET ใน production'); process.exit(1); }
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: '*' } });
@@ -185,8 +184,15 @@ const IMPORT_PROMPT = `คุณคือผู้ช่วยแยกข้อ
 ทั้งสองรูปแบบรองรับฟิลด์เสริม "section_note" (ไม่บังคับ ใส่เฉพาะข้อที่เข้าเงื่อนไขด้านล่าง)
 กติกา:
 - อย่าใส่ตัวอักษรนำหน้าตัวเลือก (ก. ข. A. B. 1. 2.) ปนอยู่ในข้อความตัวเลือก ให้ตัดออก
-- ถ้าเอกสารระบุเฉลยไว้ (ไม่ว่าจะอยู่ติดกับโจทย์หรือแยกเป็นหน้า "เฉลย"/"คำตอบ" ท้ายเล่ม) ให้จับคู่แล้วใช้เฉลยนั้นเสมอ ห้ามเดาเองถ้าเอกสารบอกไว้ชัดเจนแล้ว
-- หน้าเฉลยแยกท้ายเล่มมักอยู่ในรูปแบบ "เลขข้อ + ตัวอักษรเฉลย" เรียงต่อกันหลายข้อ เช่น "1. ข  2. ก  3. ค  4. ง" หรือ "1-B 2-A 3-C" หรือเป็นตาราง ให้จับคู่ "เลขข้อ" ในหน้าเฉลยกับ "เลขข้อ" ของโจทย์ให้ตรงกันทุกข้อ แล้วแปลงตัวอักษร (ก/ข/ค/ง หรือ A/B/C/D) เป็นตัวเลือกที่ตรงกันในข้อนั้น
+- ถ้าเอกสารระบุเฉลยไว้ (ไม่ว่าจะอยู่ติดกับโจทย์หรือแยกเป็นหน้าเฉลยท้ายเล่ม/ท้ายไฟล์) ให้จับคู่แล้วใช้เฉลยนั้นเสมอ ห้ามเดาเองถ้าเอกสารบอกไว้ชัดเจนแล้ว
+- หน้าเฉลยแยกมักขึ้นต้นด้วยหัวข้อคำใดคำหนึ่งต่อไปนี้ (อาจมีคำแปลภาษาอังกฤษต่อท้ายในวงเล็บก็ได้): "เฉลยคำตอบ", "เฉลยข้อสอบ", "เฉลย", "คำตอบ", "Answer", "Answer Key" เช่น "เฉลยคำตอบ (Answer Key)" หรือ "เฉลย (Answer Key)"
+- เนื้อหาหลังหัวข้อนั้นมักเป็น "เลขข้อ + ตัวอักษรเฉลย" เรียงต่อกันหลายข้อในบรรทัดเดียวหรือเป็นตาราง เช่น "1) ก   2) ง   3) ค   4) ข   5) ข" หรือ "1. A   2. A   3. C   4. A" — ต้องจับคู่ให้ครบทุกคู่ในบรรทัด/ตารางนั้น ไม่ใช่แค่คู่แรก
+- จับคู่ "เลขข้อ" ในหน้าเฉลยกับ "เลขข้อ" ของโจทย์ให้ตรงกันทุกข้อ แล้วแปลงตัวอักษร/ตัวเลขเฉลยเป็นตำแหน่งตัวเลือก (index เริ่มที่ 0) ตามการจับคู่ตำแหน่งนี้เสมอ ไม่ว่าเอกสารจะเขียนเป็นตัวอักษรไทย อังกฤษ หรือตัวเลขตำแหน่ง:
+  ตัวเลือกที่ 1 (index 0) = 1 = a = ก
+  ตัวเลือกที่ 2 (index 1) = 2 = b = ข
+  ตัวเลือกที่ 3 (index 2) = 3 = c = ค
+  ตัวเลือกที่ 4 (index 3) = 4 = d = ง
+  (ถ้ามีตัวเลือกที่ 5 ขึ้นไปก็ไล่ต่อตามลำดับตัวอักษร/ตัวเลขเดียวกัน)
 - ถ้าหน้าเฉลยเขียนเป็นคำตอบเต็มแทนตัวอักษร (เช่นข้ออัตนัย) ให้จับคู่เลขข้อแล้วใช้ข้อความคำตอบนั้นตรงๆ
 - ถ้าไม่มีเฉลยระบุไว้เลยทั้งเอกสาร ให้เลือกคำตอบที่ถูกต้องที่สุดตามความรู้ทั่วไป
 - คงภาษาของเอกสารต้นฉบับ ไม่แปล
@@ -213,7 +219,7 @@ async function callClaudeExtract({ text, fileBuffer, mediaType }) {
   const resp = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
-    body: JSON.stringify({ model: process.env.ANTHROPIC_MODEL || 'claude-sonnet-5-5', max_tokens: 8000, system: IMPORT_PROMPT, messages: [{ role: 'user', content }] }),
+    body: JSON.stringify({ model: process.env.ANTHROPIC_MODEL || 'claude-sonnet-5', max_tokens: 8000, system: IMPORT_PROMPT, messages: [{ role: 'user', content }] }),
   });
   if (!resp.ok) { const t = await resp.text().catch(() => ''); throw new Error('เรียก AI ไม่สำเร็จ (' + resp.status + ') ' + t.slice(0, 200)); }
   const data = await resp.json();
@@ -226,6 +232,29 @@ async function callClaudeExtract({ text, fileBuffer, mediaType }) {
 // ตัวแยกสำรองแบบไม่ใช้ AI (ใช้เมื่อไม่ได้ตั้งค่า ANTHROPIC_API_KEY) รองรับเฉพาะไฟล์ข้อความ
 // อ่านทีละบรรทัดตามลำดับในเอกสาร เพื่อให้จับหัวข้อ "ตอนที่/หมวดที่" แล้วผูกเข้ากับข้อสอบข้อถัดไปได้
 // (ความแม่นยำต่ำกว่าโหมด AI — ไม่รับประกันว่าจะจับช่วงเลขข้อที่ระบุในหัวข้อได้ตรงเป๊ะทุกกรณี)
+const ANSWER_LETTERS = 'กขคงจฉชซฌ';
+// หัวข้อหน้าเฉลยแยก: รองรับ "เฉลย", "เฉลยคำตอบ", "เฉลยข้อสอบ", "คำตอบ", "Answer", "Answer Key"
+// และยอมให้มีคำอธิบายต่อท้ายในวงเล็บ เช่น "เฉลยคำตอบ (Answer Key)" หรือ "เฉลย (Answer Key)"
+// (ต้องแยกจาก "เฉลย ข" แบบติดโจทย์ — เคสนั้นมีตัวอักษรเฉลยต่อท้ายนอกวงเล็บ จะไม่เข้าเงื่อนไขนี้)
+const ANSWER_KEY_HEADER_RE = /^(?:เฉลยคำตอบ|เฉลยข้อสอบ|เฉลย|คำตอบ|answer\s*key|answer)\s*(?:\(.*\))?\s*[:：]?\s*$/i;
+function isAnswerKeyHeader(line) { return ANSWER_KEY_HEADER_RE.test(line); }
+// แปลงโทเคนเฉลย (ก/ข/ค/ง, A/B/C/D, หรือเลขตำแหน่ง 1/2/3/4) เป็น index เริ่มที่ 0 ตามตำแหน่งเดียวกันเสมอ:
+// 1 = a = ก = ตัวเลือกที่ 1 (index 0), 2 = b = ข = ตัวเลือกที่ 2 (index 1), 3 = c = ค = ตัวเลือกที่ 3 (index 2), 4 = d = ง = ตัวเลือกที่ 4 (index 3) ฯลฯ
+function answerTokenToIndex(tok, maxLen) {
+  if (!tok) return -1;
+  if (/^[1-8]$/.test(tok)) { const i = +tok - 1; return i < maxLen ? i : -1; }
+  let idx = ANSWER_LETTERS.indexOf(tok); if (idx < 0) idx = 'abcdefgh'.indexOf(tok.toLowerCase());
+  return idx >= 0 && idx < maxLen ? idx : -1;
+}
+// แยกคู่ "เลขข้อ -> โทเคนเฉลย" จากข้อความหน้าเฉลย รองรับหลายข้อต่อบรรทัด เช่น "1) ก  2) ง  3) ค" หรือตาราง "1. A  2. A  3. C"
+function extractAnswerKeyMap(text) {
+  const map = {};
+  const re = /(\d{1,3})\s*[.)\-:：]?\s*([A-Ha-h]|[ก-ฌ]|[1-8])(?=\s|,|$|\d)/g;
+  let mm;
+  while ((mm = re.exec(text))) { if (!(mm[1] in map)) map[mm[1]] = mm[2]; }
+  return map;
+}
+
 function equalsFallback(text) {
   // เอกสารบางแบบไม่มีเลขข้อนำหน้าเลย (เช่น "5+3 = 8" ทีละบรรทัด) ลองโหมดสำรองนี้แทน
   return text.split('\n').map(l => l.trim()).filter(l => l.includes('=')).map(l => {
@@ -235,11 +264,11 @@ function equalsFallback(text) {
 }
 
 function heuristicExtract(text) {
-  const T = 'กขคงจฉชซฌ';
+  const T = ANSWER_LETTERS;
   const allLines = text.split('\n').map(l => l.trim());
   // ----- แยกหน้าเฉลยแยกท้ายเอกสารออกก่อน (บรรทัดที่เป็นหัวข้อ "เฉลย"/"คำตอบ" ล้วนๆ ไม่มีคำตอบติดอยู่ในบรรทัดเดียวกัน) -----
   // ต้องตัดออกจากส่วนที่จะพาร์สเป็นโจทย์ก่อน ไม่งั้นเนื้อหาในหน้าเฉลย (เช่น "1. ข  2. ก") จะถูกเข้าใจผิดว่าเป็นข้อสอบข้อใหม่
-  const keyHeaderIdx = allLines.findIndex(l => /^(?:เฉลย|คำตอบ|answer\s*key)\s*[:：]?\s*$/i.test(l));
+  const keyHeaderIdx = allLines.findIndex(isAnswerKeyHeader);
   const lines = keyHeaderIdx >= 0 ? allLines.slice(0, keyHeaderIdx) : allLines;
   const keyText = keyHeaderIdx >= 0 ? allLines.slice(keyHeaderIdx + 1).join('\n') : '';
 
@@ -284,55 +313,26 @@ function heuristicExtract(text) {
   }
   flush();
 
-  // ----- จับคู่ "เลขข้อ" ในหน้าเฉลยแยก กับ "ตัวอักษรเฉลย" (ก ข ค ง หรือ A B C D) หรือข้อความคำตอบเต็มสำหรับข้ออัตนัย -----
+  // ----- จับคู่ "เลขข้อ" ในหน้าเฉลยแยก กับ "ตัวอักษรเฉลย" (ก ข ค ง / A B C D / เลขตำแหน่ง) หรือข้อความคำตอบเต็มสำหรับข้ออัตนัย -----
   if (keyText) {
-    const letterMap = {}, textMap = {};
-    const letterRe = /(\d{1,3})\s*[.)\-:：]?\s*([A-Da-d]|[ก-ฌ])(?=\s|,|$|\d)/g;
-    let mm;
-    while ((mm = letterRe.exec(keyText))) { if (!(mm[1] in letterMap)) letterMap[mm[1]] = mm[2]; }
+    const letterMap = extractAnswerKeyMap(keyText);
+    const textMap = {};
     for (const l of keyText.split('\n')) {
       const mt = l.trim().match(/^(\d{1,3})\s*[.)\-:：]\s*(.+)$/);
       if (mt && !(mt[1] in textMap)) textMap[mt[1]] = mt[2].trim();
     }
     for (const item of out) {
       if (item.t === 'mc' && item.a === -1 && item.num && letterMap[item.num]) {
-        const k = letterMap[item.num];
-        let idx = T.indexOf(k); if (idx < 0) idx = 'abcdefgh'.indexOf(k.toLowerCase());
-        if (idx >= 0 && idx < item.ch.length) item.a = idx;
+        const idx = answerTokenToIndex(letterMap[item.num], item.ch.length);
+        if (idx >= 0) item.a = idx;
       }
       if (item.t === 'sa' && !item.a.length && item.num && textMap[item.num]) item.a = [textMap[item.num]];
     }
   }
   // ข้อปรนัยที่สุดท้ายแล้วก็ยังไม่เจอเฉลยเลย (ไม่มีทั้งแบบติดโจทย์และหน้าเฉลยแยก) ให้ default เป็นตัวเลือกแรกไว้กันระบบพัง
   // ข้ออัตนัยที่ไม่มีคำตอบเลยจริงๆ ตัดทิ้ง เพราะใส่คำตอบเดาไม่ได้
-  const cleaned = out.filter(it => it.t !== 'sa' || it.a.length).map(({ num, ...rest }) => (rest.t === 'mc' && rest.a === -1 ? { ...rest, a: 0, keyMissing: true } : rest));
+  const cleaned = out.filter(it => it.t !== 'sa' || it.a.length).map(({ num, ...rest }) => (rest.t === 'mc' && rest.a === -1 ? { ...rest, a: 0 } : rest));
   return cleaned.length >= 3 ? cleaned : equalsFallback(text);
-}
-
-
-// ตัวอ่านตาราง Excel/CSV แบบรู้จักคอลัมน์ (ใช้เมื่อไม่มี ANTHROPIC_API_KEY) — เพิ่มใน ExamFlow
-// รูปแบบที่รองรับ: [โจทย์ | เฉลย] เป็นอัตนัย หรือ [โจทย์ | ตัวเลือก 2+ ช่อง | เฉลย] เป็นปรนัย
-// แถวแรกถ้าเป็นหัวตาราง (โจทย์/question/เฉลย/answer) จะถูกข้าม; เฉลยปรนัยเป็น ก-ฌ, A-H หรือเลขลำดับ 1-based ก็ได้
-function sheetExtract(rows) {
-  const T = 'กขคงจฉชซฌ', out = [];
-  const isHead = r => /โจทย์|คำถาม|question|เฉลย|คำตอบ|answer/i.test(r.slice(0, 2).concat(r.slice(-1)).join(' ')) && r.every(c => !/^\d+(\.\d+)?$/.test(c));
-  rows = rows.map(r => r.map(c => String(c ?? '').trim())).filter(r => r.some(Boolean));
-  if (rows.length && isHead(rows[0])) rows.shift();
-  for (const r of rows) {
-    while (r.length && !r[r.length - 1]) r.pop();
-    if (r.length < 2 || !r[0]) continue;
-    if (r.length === 2) { out.push({ t: 'sa', q: r[0].replace(/\s*[=＝]\s*$/, '').trim(), a: r[1].split(/\s*[\/|]\s*/).filter(Boolean), ex: '' }); continue; }
-    const key = r[r.length - 1], ch = r.slice(1, -1).filter(Boolean);
-    if (ch.length < 2) continue;
-    const k = key.replace(/[().\s]/g, '');
-    let idx = T.indexOf(k.charAt(0));
-    if (idx < 0 && /^[A-Ha-h]$/.test(k)) idx = 'abcdefgh'.indexOf(k.toLowerCase());
-    if (idx < 0 && /^\d+$/.test(k)) idx = +k - 1;
-    if (idx < 0) { const t = ch.findIndex(c => c === key); idx = t; }   // เฉลยเป็นข้อความเต็มของตัวเลือก
-    const missing = !(idx >= 0 && idx < ch.length);
-    out.push({ t: 'mc', q: r[0], ch, a: missing ? 0 : idx, ex: '', ...(missing ? { keyMissing: true } : {}) });
-  }
-  return out;
 }
 
 const IMAGE_MEDIA = { '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.gif': 'image/gif', '.webp': 'image/webp' };
@@ -341,7 +341,7 @@ app.post('/api/admin/import', requireAuth, requireAdmin, importUpload.single('fi
   if (!req.file) return res.status(400).json({ error: 'ไม่พบไฟล์ที่อัปโหลด' });
   const ext = path.extname(req.file.originalname || '').toLowerCase();
   const buf = req.file.buffer;
-  let list, source, sheetRows = null;
+  let list, source;
   try {
     if (ext === '.pdf' || IMAGE_MEDIA[ext]) {
       list = await callClaudeExtract({ fileBuffer: buf, mediaType: ext === '.pdf' ? 'application/pdf' : IMAGE_MEDIA[ext] });
@@ -352,17 +352,11 @@ app.post('/api/admin/import', requireAuth, requireAdmin, importUpload.single('fi
       else if (ext === '.xlsx' || ext === '.xls' || ext === '.csv') {
         const wb = XLSX.read(buf, { type: 'buffer' });
         text = wb.SheetNames.map(n => XLSX.utils.sheet_to_csv(wb.Sheets[n])).join('\n\n');
-        sheetRows = wb.SheetNames.flatMap(n => XLSX.utils.sheet_to_json(wb.Sheets[n], { header: 1, defval: '' }));
       } else if (ext === '.txt' || ext === '.md') text = buf.toString('utf-8');
       else return res.status(400).json({ error: 'ไม่รองรับไฟล์นามสกุลนี้ รองรับ .docx .xlsx .xls .csv .pdf .jpg .png .gif .webp .txt .md' });
       if (!text.trim()) return res.status(400).json({ error: 'ไม่พบข้อความในไฟล์นี้' });
       try { list = await callClaudeExtract({ text }); source = 'AI'; }
-      catch (e) {
-        if (e.code !== 'NO_API_KEY') throw e;
-        list = sheetRows ? sheetExtract(sheetRows) : [];
-        if (!list.length) list = heuristicExtract(text);
-        source = 'ตัวแยกอัตโนมัติ (ยังไม่ได้ตั้งค่า AI — ผลลัพธ์อาจไม่แม่นยำเท่า)';
-      }
+      catch (e) { if (e.code !== 'NO_API_KEY') throw e; list = heuristicExtract(text); source = 'ตัวแยกอัตโนมัติ (ยังไม่ได้ตั้งค่า AI — ผลลัพธ์อาจไม่แม่นยำเท่า)'; }
     }
   } catch (e) {
     if (e.code === 'NO_API_KEY') return res.status(400).json({ error: 'ไฟล์นี้ต้องใช้ AI ช่วยอ่าน (รูปภาพ/PDF) แต่เซิร์ฟเวอร์ยังไม่ได้ตั้งค่า ANTHROPIC_API_KEY กรุณาตั้งค่าก่อนใช้งาน' });
@@ -372,9 +366,8 @@ app.post('/api/admin/import', requireAuth, requireAdmin, importUpload.single('fi
     x.t === 'mc' ? Array.isArray(x.ch) && x.ch.length >= 2 && Number.isInteger(x.a) && x.a >= 0 && x.a < x.ch.length
       : Array.isArray(x.a) && x.a.length
   )).map(x => ({ ...x, ex: x.ex || '' }));
-  const keyMissing = list.filter(x => x.keyMissing).length;
   if (!list.length) return res.status(400).json({ error: 'ไม่พบข้อสอบในไฟล์นี้ ลองตรวจรูปแบบไฟล์หรือใช้ไฟล์อื่น' });
-  res.json({ source, keyMissing, questions: list });
+  res.json({ source, questions: list });
 }));
 
 app.post('/api/admin/sets/:id/questions/bulk', requireAuth, requireAdmin, ah(async (req, res) => {
@@ -397,6 +390,38 @@ app.post('/api/admin/sets/:id/questions/bulk', requireAuth, requireAdmin, ah(asy
     added++;
   }
   res.json({ ok: true, added });
+}));
+
+// ---------- วางเฉลยแยกทั้งชุด (ไม่ต้องเปิดแก้ทีละข้อ) ----------
+// ขั้น 1: preview — จับคู่ "ลำดับข้อในชุด" (ตามที่แสดงในหน้าแอดมิน 1,2,3,...) กับโทเคนเฉลยที่แอดมินวางมา แล้วส่งกลับให้ตรวจก่อน
+app.post('/api/admin/sets/:id/answers/preview', requireAuth, requireAdmin, ah(async (req, res) => {
+  const text = String(req.body.text || '');
+  if (!text.trim()) return res.status(400).json({ error: 'กรุณาวางข้อความเฉลย' });
+  const keyMap = extractAnswerKeyMap(text);
+  if (!Object.keys(keyMap).length) return res.status(400).json({ error: 'ไม่พบรูปแบบเฉลยที่อ่านได้ ตัวอย่างที่รองรับ: "1) ก 2) ข 3) ค" หรือ "1. A 2. B 3. C"' });
+  const rows = await db.prepare('SELECT * FROM questions WHERE set_id=? ORDER BY ord ASC').all(req.params.id);
+  const preview = rows.map((q, i) => {
+    const pos = String(i + 1), token = keyMap[pos] || null;
+    const choices = q.choices ? JSON.parse(q.choices) : null;
+    const currentIndex = q.type === 'mc' ? JSON.parse(q.answer) : null;
+    let proposedIndex = null, ok = false, reason = '';
+    if (q.type !== 'mc') reason = 'ไม่ใช่ข้อปรนัย ข้ามให้อัตโนมัติ';
+    else if (!token) reason = 'ไม่พบเฉลยสำหรับลำดับนี้ในข้อความที่วาง';
+    else { const idx = answerTokenToIndex(token, choices.length); if (idx < 0) reason = 'ตัวอักษร/เลขเฉลยไม่ตรงกับจำนวนตัวเลือกที่มี'; else { proposedIndex = idx; ok = true; } }
+    return { id: q.id, position: i + 1, q: q.q, type: q.type, choices, currentIndex, token, proposedIndex, ok, reason, changed: ok && proposedIndex !== currentIndex };
+  });
+  res.json({ total: rows.length, matched: preview.filter(p => p.ok).length, preview });
+}));
+// ขั้น 2: apply — บันทึกเฉพาะรายการที่แอดมินยืนยัน (ติ๊กเลือกแล้ว) จากหน้าตรวจทาน
+app.post('/api/admin/sets/:id/answers/apply', requireAuth, requireAdmin, ah(async (req, res) => {
+  const updates = Array.isArray(req.body.updates) ? req.body.updates : [];
+  let n = 0;
+  for (const u of updates) {
+    if (!u || !u.id || !Number.isInteger(u.index)) continue;
+    await db.prepare('UPDATE questions SET answer=? WHERE id=? AND set_id=?').run(JSON.stringify(u.index), u.id, req.params.id);
+    n++;
+  }
+  res.json({ ok: true, updated: n });
 }));
 
 app.get('/api/admin/users', requireAuth, requireAdmin, ah(async (req, res) => {
@@ -438,7 +463,6 @@ function rightAnswerText(q) {
 app.post('/api/exam/:sid/check', (req, res) => {
   const sess = sessions.get(req.params.sid);
   if (!sess) return res.status(410).json({ error: 'เซสชันหมดอายุ กรุณาเริ่มทำข้อสอบใหม่' });
-  if (sess.mode !== 'p') return res.status(403).json({ error: 'โหมดสอบจริงไม่เปิดเฉลยระหว่างทำข้อสอบ' });
   const q = sess.qs.find(x => x.id === req.body.questionId);
   if (!q) return res.status(404).json({ error: 'ไม่พบข้อสอบข้อนี้' });
   const ok = gradeOne(q, req.body.answer);
@@ -475,13 +499,7 @@ app.get('/api/results', ah(async (req, res) => {
 app.get('/api/results/:id', ah(async (req, res) => {
   const r = await db.prepare('SELECT * FROM results WHERE id=?').get(req.params.id);
   if (!r) return res.status(404).json({ error: 'ไม่พบผลสอบ' });
-  let rank = null, of = null, avg = null;
-  if (r.set_id) {
-    const peers = await db.prepare("SELECT score FROM results WHERE set_id=? AND mode=? AND detail NOT LIKE '%livePoints%'").all(r.set_id, r.mode);
-    of = peers.length; rank = 1 + peers.filter(x => Number(x.score) > r.score).length;
-    avg = of ? peers.reduce((a, x) => a + Number(x.score), 0) / of : null;
-  }
-  res.json({ id: r.id, title: r.set_title, score: r.score, total: r.total, mode: r.mode, sec: r.sec, away: r.away, date: r.created_at, rank, of, avg, detail: JSON.parse(r.detail) });
+  res.json({ id: r.id, title: r.set_title, score: r.score, total: r.total, mode: r.mode, sec: r.sec, away: r.away, date: r.created_at, detail: JSON.parse(r.detail) });
 }));
 
 // =====================================================================
@@ -621,7 +639,7 @@ const PORT = process.env.PORT || 3000;
 // จะ import { app } จากไฟล์นี้ไปใช้กับ Vercel Functions แทนโดยไม่เรียก listen()
 if (require.main === module) {
   db.ready
-    .then(() => server.listen(PORT, () => console.log(`ExamFlow server running on http://localhost:${PORT}`)))
+    .then(() => server.listen(PORT, () => console.log(`ExamHub server running on http://localhost:${PORT}`)))
     .catch(err => { console.error('เชื่อมต่อฐานข้อมูล Turso ไม่สำเร็จ:', err); process.exit(1); });
 }
 

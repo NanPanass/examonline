@@ -1,7 +1,7 @@
 {
-  "name": "examflow",
+  "name": "examhub-server",
   "version": "1.0.0",
-  "description": "ExamFlow — ระบบสอบออนไลน์ (ดีไซน์ Stitch เป็นระบบหลัก + backend/ฟีเจอร์จาก ExamHub)",
+  "description": "ExamHub - ระบบสอบออนไลน์ พร้อม backend กลาง, auth จริง, โจทย์/คำตอบรูปภาพ, และห้องสอบสดแบบ Kahoot",
   "main": "server/server.js",
   "scripts": {
     "start": "node --env-file=.env server/server.js",
