@@ -14,6 +14,7 @@ const express = require('express');
 const cors = require('cors');
 const multer = require('multer');
 const mammoth = require('mammoth');
+const { extractDocxExam } = require('./docx-images');
 const XLSX = require('xlsx');
 const { v4: uuid } = require('uuid');
 const http = require('http');
@@ -555,7 +556,16 @@ app.post('/api/admin/import', requireAuth, requireAdmin, importUpload.single('fi
       source = 'AI (อ่านไฟล์โดยตรง)';
     } else {
       let text = '';
-      if (ext === '.docx') text = (await mammoth.extractRawText({ buffer: buf })).value;
+      if (ext === '.docx') {
+        text = (await mammoth.extractRawText({ buffer: buf })).value;
+        // ลองอ่านแบบโค้ดล้วนก่อน (ดึงรูปโจทย์/รูปตัวเลือกตามตำแหน่งในไฟล์) ถ้าพบข้อสอบที่มีรูปให้ใช้ผลนี้เลย
+        try {
+          const dl = await extractDocxExam(buf);
+          if (dl.length >= 2 && dl.some(x => x.q_image || x.chImg.some(Boolean))) {
+            return res.json({ source: 'ตัวแยกโค้ด (ดึงรูปจากไฟล์ Word อัตโนมัติ ไม่ใช้ AI)' + (dl.every(x => x.keyFound) ? ' + เฉลยท้ายไฟล์ครบ' : ' — บางข้อไม่พบเฉลย ตรวจทานก่อนบันทึก'), questions: dl.map(({ keyFound, ...r }) => r) });
+          }
+        } catch (e) { console.warn('docx image extract failed, fallback:', e.message); }
+      }
       else if (ext === '.xlsx' || ext === '.xls' || ext === '.csv') {
         const wb = XLSX.read(buf, { type: 'buffer' });
         text = wb.SheetNames.map(n => XLSX.utils.sheet_to_csv(wb.Sheets[n])).join('\n\n');
@@ -575,7 +585,7 @@ app.post('/api/admin/import', requireAuth, requireAdmin, importUpload.single('fi
     const kr = applyKeyToList(list, keySrcText);
     if (kr.checked) source += ` + ตรวจกับเฉลยท้ายไฟล์ ${kr.checked} ข้อ${kr.changed ? ` (แก้ ${kr.changed} ข้อ)` : ''}`;
   }
-  list = (list || []).filter(x => x && x.q && (
+  list = (list || []).filter(x => x && (x.q || x.q_image) && (
     x.t === 'mc' ? Array.isArray(x.ch) && x.ch.length >= 2 && Number.isInteger(x.a) && x.a >= 0 && x.a < x.ch.length
       : Array.isArray(x.a) && x.a.length
   )).map(x => ({ ...x, ex: x.ex || '' }));
