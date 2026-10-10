@@ -184,6 +184,7 @@ const IMPORT_PROMPT = `คุณคือผู้ช่วยแยกข้อ
 ทั้งสองรูปแบบรองรับฟิลด์เสริม "section_note" (ไม่บังคับ ใส่เฉพาะข้อที่เข้าเงื่อนไขด้านล่าง)
 กติกา:
 - อย่าใส่ตัวอักษรนำหน้าตัวเลือก (ก. ข. A. B. 1. 2.) ปนอยู่ในข้อความตัวเลือก ให้ตัดออก
+- ให้แยกตัวเลือกตาม "คีย์ข้อความ" (ก. ข. ค. ง. / A. B. C. D. / 1. 2. 3. 4.) ไม่ใช่ตามบรรทัด: ตัวเลือกหลายตัวอาจอยู่บรรทัดเดียวกันหรือจัดเป็น 2 คอลัมน์ เช่น "ก. ช้าง   ข. เสือชีตาห์" คือ 2 ตัวเลือก (ก และ ข) และ "ก. ช้าง ข. เสือ ค. เต่า ง. หมี" ในบรรทัดเดียวคือ 4 ตัวเลือก — นับจำนวนตัวเลือกจากจำนวนคีย์ที่พบเสมอ
 - ถ้าเอกสารระบุเฉลยไว้ (ไม่ว่าจะอยู่ติดกับโจทย์หรือแยกเป็นหน้าเฉลยท้ายเล่ม/ท้ายไฟล์) ให้จับคู่แล้วใช้เฉลยนั้นเสมอ ห้ามเดาเองถ้าเอกสารบอกไว้ชัดเจนแล้ว
 - หน้าเฉลยแยกมักขึ้นต้นด้วยหัวข้อคำใดคำหนึ่งต่อไปนี้ (อาจมีคำแปลภาษาอังกฤษต่อท้ายในวงเล็บก็ได้): "เฉลยคำตอบ", "เฉลยข้อสอบ", "เฉลย", "คำตอบ", "Answer", "Answer Key" เช่น "เฉลยคำตอบ (Answer Key)" หรือ "เฉลย (Answer Key)"
 - เนื้อหาหลังหัวข้อนั้นมักเป็น "เลขข้อ + ตัวอักษรเฉลย" เรียงต่อกันหลายข้อในบรรทัดเดียวหรือเป็นตาราง เช่น "1) ก   2) ง   3) ค   4) ข   5) ข" หรือ "1. A   2. A   3. C   4. A" — ต้องจับคู่ให้ครบทุกคู่ในบรรทัด/ตารางนั้น ไม่ใช่แค่คู่แรก
@@ -263,6 +264,41 @@ function equalsFallback(text) {
   }).filter(Boolean);
 }
 
+// ===== แยกตัวเลือกตาม "คีย์ข้อความ" (ก ข ค ง / A B C D / 1 2 3 4) ไม่ยึดตามบรรทัด =====
+// ตัวเลือกหลายตัวอยู่บรรทัดเดียวกันได้ เช่น "ก. ช้าง   ข. เสือ" หรือ "ก. ช้าง ข. เสือ ค. เต่า ง. หมี" จะได้ 2 / 4 ตัวเลือกตามจำนวนคีย์ ไม่ใช่ตามจำนวนบรรทัด
+// กติกา: คีย์ต้องเรียงต่อกันตามลำดับ (ก→ข→ค→ง, a→b→c→d, 1→2→3→4) กันข้อความธรรมดาที่บังเอิญมี "ก." หรือ "e.g." ปนอยู่
+const CHOICE_SEQS = { th: ANSWER_LETTERS, en: 'abcdefgh', num: '12345678' };
+function choiceStyleOf(ch) {
+  const c = ch.toLowerCase();
+  if (CHOICE_SEQS.th.includes(c)) return 'th';
+  if (CHOICE_SEQS.en.includes(c)) return 'en';
+  if (CHOICE_SEQS.num.includes(c)) return 'num';
+  return null;
+}
+// หาสายคีย์ตัวเลือกที่เรียงต่อกันในบรรทัดเดียว เริ่มจากตัวเลือกลำดับที่ startIdx (0 = ก/a/1)
+// คืน { style, before, items:[ข้อความตัวเลือก...] } หรือ null ถ้าไม่พบ
+function findChoiceRun(line, startIdx = 0) {
+  const re = /(^|[\s\u00a0])\(?([ก-ฌA-Ha-h1-8])[.)](?!\d)[ \t\u00a0]*/g;
+  const marks = []; let m;
+  while ((m = re.exec(line))) marks.push({ ch: m[2], start: m.index + m[1].length, end: re.lastIndex });
+  for (let s = 0; s < marks.length; s++) {
+    const style = choiceStyleOf(marks[s].ch);
+    if (!style) continue;
+    const seq = CHOICE_SEQS[style];
+    if (seq[startIdx] !== marks[s].ch.toLowerCase()) continue;
+    const run = [marks[s]];
+    for (let k = s + 1; k < marks.length; k++) {
+      if (seq[startIdx + run.length] === marks[k].ch.toLowerCase()) run.push(marks[k]);
+    }
+    return {
+      style,
+      before: line.slice(0, run[0].start).trim(),
+      items: run.map((mk, i) => line.slice(mk.end, i + 1 < run.length ? run[i + 1].start : line.length).trim()),
+    };
+  }
+  return null;
+}
+
 function heuristicExtract(text) {
   const T = ANSWER_LETTERS;
   const allLines = text.split('\n').map(l => l.trim());
@@ -296,20 +332,59 @@ function heuristicExtract(text) {
     }
     cur = null;
   };
-  for (const l of lines) {
+  for (let li = 0; li < lines.length; li++) {
+    const l = lines[li];
     if (!l) continue;
     let m;
     if ((m = l.match(/^((?:หมวดที่|ตอนที่)[^\n]*)$/))) { pendingNote.push(m[1].trim()); continue; }
+    // ----- ตัวเลือก: จับตามคีย์ ก ข ค ง / a b c d / 1 2 3 4 ภายในบรรทัด (ได้หลายตัวเลือกต่อบรรทัด) -----
+    // ต้องเช็คก่อนการจับ "เลขข้อ" เพื่อให้ "1. xxx  2. yyy" ที่เป็นตัวเลือกไม่ถูกเข้าใจผิดว่าเป็นโจทย์ข้อใหม่
+    if (cur && !/^(?:เฉลย|คำตอบ|ตอบ|answer|ans)\s*[:：\-]/i.test(l)) {
+      const run = findChoiceRun(l, cur.choices.length);
+      if (run) {
+        let ok = false;
+        if (run.style !== 'num') {
+          // ขึ้นต้นบรรทัดด้วยคีย์ หรือมีคีย์ต่อกันตั้งแต่ 2 ตัวขึ้นไป (กรณีตัวเลือกต่อท้ายโจทย์บรรทัดเดียวกัน ต้องเริ่มที่ ก/a เท่านั้น)
+          ok = run.before === '' || (run.items.length >= 2 && cur.choices.length === 0) || (cur.choices.length > 0 && cur.style === run.style);
+        } else if (run.before === '') {
+          const n = cur.choices.length + 1;
+          if (run.items.length >= 2) ok = true;
+          else if (cur.style === 'num') {
+            // เลขตัวเลือกอาจชนกับเลขข้อถัดไป (เช่น ข้อ 3 กับตัวเลือก 3): ถ้าชน ให้ถือเป็นตัวเลือกก็ต่อเมื่อบรรทัดถัดไปเป็นตัวเลือก "n+1."
+            if (n !== +cur.num + 1 || cur.choices.length < 2) ok = true;
+            else { const next = lines.slice(li + 1).find(x => x); ok = !!next && new RegExp('^\\(?' + (n + 1) + '[.)](?!\\d)').test(next); }
+          }
+          else if (cur.choices.length === 0) {
+            // ตัวเลือกแบบตัวเลขที่ขึ้นบรรทัดละข้อ: ยอมรับ "1." ก็ต่อเมื่อบรรทัดถัดไปเป็น "2."
+            const next = lines.slice(li + 1).find(x => x);
+            ok = !!next && /^\(?2[.)](?!\d)/.test(next);
+          }
+        }
+        if (ok) {
+          if (run.before) {
+            if (cur.choices.length === 0) cur.qLines.push(run.before);
+            else cur.choices[cur.choices.length - 1] += ' ' + run.before;
+          }
+          cur.style = cur.style || run.style;
+          for (const t of run.items) cur.choices.push(t);
+          continue;
+        }
+      }
+    }
     if ((m = l.match(/^(?:ข้อ\s*)?(\d{1,3})\s*[.)]\s*(.*)$/))) {
       flush();
-      cur = { qLines: [m[2]], choices: [], ans: '', num: m[1] };
+      cur = { qLines: [m[2]], choices: [], ans: '', num: m[1], style: null };
+      // ตัวเลือกต่อท้ายโจทย์ในบรรทัดเดียวกัน เช่น "2. โจทย์? ก. ... ข. ... ค. ... ง. ..." (ต้องมีโจทย์นำหน้าและคีย์ตั้งแต่ 2 ตัวขึ้นไป)
+      const inl = findChoiceRun(m[2], 0);
+      if (inl && inl.style !== 'num' && inl.before && inl.items.length >= 2) { cur.qLines = [inl.before]; cur.choices = inl.items; cur.style = inl.style; }
       if (pendingNote.length) { cur.note = pendingNote.join('\n'); pendingNote = []; }
       continue;
     }
     if (!cur) continue;
     if ((m = l.match(/^(?:เฉลย|คำตอบ|ตอบ|answer|ans)\s*[:：\-]?\s*(.+)$/i))) { cur.ans = m[1].trim(); continue; }
-    if ((m = l.match(/^\(?([A-Ha-hก-ฌ])[.)]\s*(.+)$/))) { cur.choices.push(m[2]); continue; }
-    cur.qLines.push(l);
+    // บรรทัดที่ไม่มีคีย์: ถ้าเริ่มมีตัวเลือกแล้วถือเป็นข้อความต่อบรรทัดของตัวเลือกล่าสุด ไม่งั้นเป็นส่วนของโจทย์
+    if (cur.choices.length) cur.choices[cur.choices.length - 1] += ' ' + l;
+    else cur.qLines.push(l);
   }
   flush();
 
