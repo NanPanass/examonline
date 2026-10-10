@@ -15,6 +15,7 @@ const cors = require('cors');
 const multer = require('multer');
 const mammoth = require('mammoth');
 // ตัวดึงรูปจากไฟล์ Word (ไม่บังคับ): ถ้าโหลดไม่ได้ (เช่น ยังไม่ได้ npm install cheerio) เซิร์ฟเวอร์ต้องไม่ล่ม แค่ข้ามฟีเจอร์นี้
+const { noteKind, joinNote } = require('./section-notes');   // ตัวจับหัวข้อ/คำสั่ง/เนื้อเรื่อง (section_note) ใช้ร่วมกับ docx-images.js
 let extractDocxExam = null;
 try { ({ extractDocxExam } = require('./docx-images')); }
 catch (e) { console.warn('[import] ข้ามการดึงรูปจาก .docx เพราะโหลด docx-images ไม่ได้:', e.message); }
@@ -221,13 +222,19 @@ const IMPORT_PROMPT = `คุณคือผู้ช่วยแยกข้อ
 - ข้ามส่วนที่ไม่ใช่ข้อสอบ เช่น คำนำ หน้าปก เลขหน้า
 - ถ้าไม่พบข้อสอบเลย ให้ตอบเป็น [] (อาเรย์ว่าง)
 
-กติกาเรื่องหัวข้อ/คำอธิบายช่วงตอน (section_note):
-- เอกสารมักมีบรรทัดหัวข้อก่อนกลุ่มคำถาม เช่น "ตอนที่ 1: เลือกความหมายที่ถูกต้อง (ข้อ 1-10)" หรือ "หมวดที่ 1 กฎหมาย ระเบียบที่เกี่ยวข้องกับการปฏิบัติราชการทั่วไป (30 ข้อ)"
-- ถ้าเจอบรรทัดแบบนี้ ให้คัดลอกข้อความทั้งบรรทัด (รวมช่วงเลขข้อ/จำนวนข้อถ้ามี) ใส่ไว้ในฟิลด์ "section_note" ของข้อคำถาม "ข้อแรก" ที่อยู่ในช่วงนั้นเท่านั้น (เช่น ถ้าหัวข้อระบุว่าเริ่มที่ข้อ 25 ให้ใส่ section_note ไว้ที่ข้อสอบข้อที่ตรงกับข้อ 25 ของเอกสารต้นฉบับ ไม่ใช่ข้อก่อนหน้านั้น)
-- ถ้าหัวข้อไม่ได้ระบุช่วงเลขข้อไว้ ให้ใส่ section_note ไว้ที่ข้อคำถามข้อแรกที่ปรากฏถัดจากบรรทัดหัวข้อนั้นทันที
-- ถ้าเจอทั้ง "หมวดที่" และ "ตอนที่" อยู่ติดกันสำหรับช่วงเดียวกัน (เช่นหัวข้อใหญ่ตามด้วยหัวข้อย่อย) ให้รวมข้อความทั้งสองบรรทัดเป็น section_note เดียวกัน (ต่อกันด้วยการขึ้นบรรทัดใหม่ \\n) ไม่ต้องแยกใส่คนละข้อ
+กติกาเรื่องหัวข้อ/คำสั่ง/เนื้อเรื่อง (section_note):
+- section_note คือข้อความ "ที่ไม่ใช่โจทย์และไม่ใช่ตัวเลือก" ซึ่งอยู่ก่อนกลุ่มคำถาม และมีไว้อธิบายหรือให้ข้อมูลเพื่อใช้ตอบข้อที่ตามมา มี 4 ประเภท (ไม่ใช่แค่ "ตอนที่"):
+  1) หัวข้อช่วง เช่น "ตอนที่ 1: เลือกความหมายที่ถูกต้อง (ข้อ 1-10)", "หมวดที่ 1 กฎหมาย ... (30 ข้อ)", "ส่วนที่ 2", "ภาคที่ 1", "Part A", "Section 2", "Unit 3"
+  2) คำสั่ง/คำชี้แจง/วิธีตอบ/ตัวอย่าง เช่น "คำสั่ง: ...", "คำชี้แจง", "คำอธิบาย", "วิธีทำ", "หมายเหตุ", "ตัวอย่าง", "Directions: ...", "Instructions", "Note", "Example" รวมถึงประโยคสั่งทั่วไป เช่น "จงเลือกคำตอบที่ถูกต้องที่สุด", "Choose the best answer.", "Look at the picture."
+  3) เนื้อเรื่อง/ข้อมูลที่ใช้ตอบหลายข้อ เช่น บทความ นิทาน เรื่องสั้น บทสนทนา (Dialogue/Conversation) ข้อความ (Text/Passage) วลี (Phrase) จดหมาย อีเมล ประกาศ เมนู ตาราง ที่ตามหลังประโยคอย่าง "อ่านข้อความต่อไปนี้แล้วตอบข้อ 5-7" หรือ "Read the passage and answer questions 5-7"
+  4) ประโยคที่บอกว่าข้อมูลนั้นใช้ตอบข้อไหน เช่น "ใช้ตอบคำถามข้อ 5-7", "Questions 5-7 refer to the following passage"
+- ให้คัดลอกข้อความ "ครบถ้วนตามต้นฉบับ" ห้ามสรุป ห้ามย่อ ห้ามแปล ถ้ามีหลายบรรทัดที่อยู่ติดกันสำหรับช่วงเดียวกัน (เช่น หัวข้อ + คำสั่ง + เนื้อเรื่อง) ให้รวมเป็น section_note เดียว ต่อกันด้วยการขึ้นบรรทัดใหม่ (\\n) ตามลำดับในเอกสาร ไม่ต้องแยกใส่คนละข้อ
+- ใส่ section_note ไว้ที่ข้อคำถาม "ข้อแรก" ของช่วงนั้นเท่านั้น (เช่น ถ้าหัวข้อระบุว่าเริ่มที่ข้อ 25 ให้ใส่ที่ข้อสอบข้อที่ตรงกับข้อ 25 ของเอกสารต้นฉบับ ไม่ใช่ข้อก่อนหน้านั้น)
+- ถ้าไม่ได้ระบุช่วงเลขข้อ ให้ใส่ไว้ที่ข้อคำถามข้อแรกที่ปรากฏถัดจากข้อความนั้นทันที
+- ห้ามนำข้อความประเภทเหล่านี้ไปต่อท้ายโจทย์หรือตัวเลือกของข้อก่อนหน้า (เช่น หัวข้อ "ตอนที่ 2" ที่อยู่ถัดจากตัวเลือกสุดท้ายของข้อ 10 ไม่ใช่ส่วนหนึ่งของตัวเลือกนั้น)
+- ห้ามใส่ลงใน section_note: ตัวโจทย์ ตัวเลือก หัวเฉลย/ตารางเฉลย หน้าปก ช่องกรอกชื่อ-นามสกุล-คะแนน เลขหน้า
 - ข้อคำถามที่ไม่ได้อยู่ต้นช่วงไม่ต้องมีฟิลด์ section_note เลย (อย่าใส่เป็นค่าว่าง ให้ไม่ต้องมี key นี้)
-- ถ้าเอกสารไม่มีหัวข้อแบบนี้เลย ไม่ต้องใส่ section_note ในข้อใดเลย`;
+- ถ้าเอกสารไม่มีข้อความแบบนี้เลย ไม่ต้องใส่ section_note ในข้อใดเลย`;
 
 async function callClaudeExtract({ text, fileBuffer, mediaType }) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
@@ -252,7 +259,7 @@ async function callClaudeExtract({ text, fileBuffer, mediaType }) {
 }
 
 // ตัวแยกสำรองแบบไม่ใช้ AI (ใช้เมื่อไม่ได้ตั้งค่า ANTHROPIC_API_KEY) รองรับเฉพาะไฟล์ข้อความ
-// อ่านทีละบรรทัดตามลำดับในเอกสาร เพื่อให้จับหัวข้อ "ตอนที่/หมวดที่" แล้วผูกเข้ากับข้อสอบข้อถัดไปได้
+// อ่านทีละบรรทัดตามลำดับในเอกสาร เพื่อให้จับหัวข้อ/คำสั่ง/เนื้อเรื่อง (ตอนที่ หมวดที่ คำสั่ง Part Directions Passage Phrase ฯลฯ — ดู section-notes.js) แล้วผูกเข้ากับข้อสอบข้อถัดไปได้
 // (ความแม่นยำต่ำกว่าโหมด AI — ไม่รับประกันว่าจะจับช่วงเลขข้อที่ระบุในหัวข้อได้ตรงเป๊ะทุกกรณี)
 const ANSWER_LETTERS = 'กขคงจฉชซฌ';
 // หัวข้อหน้าเฉลยแยก: รองรับ "เฉลย", "เฉลยคำตอบ", "เฉลยข้อสอบ", "คำตอบ", "Answer", "Answer Key"
@@ -478,7 +485,10 @@ function heuristicExtract(text) {
     const l = lines[li];
     if (!l) continue;
     let m;
-    if ((m = l.match(/^((?:หมวดที่|ตอนที่)[^\n]*)$/))) { pendingNote.push(m[1].trim()); continue; }
+    // ----- หัวข้อ/คำสั่ง/เนื้อเรื่อง → section_note (ตอนที่ หมวดที่ คำสั่ง Part Directions Passage Phrase "ตอบคำถามข้อ 5-7" ฯลฯ) -----
+    // strong = ตัดโจทย์ที่เปิดอยู่ทันที | weak ("จงเลือก..." "Choose the...") = นับเป็น note เฉพาะเมื่อยังไม่เริ่มข้อ หรือข้อก่อนหน้ามีตัวเลือกแล้ว ≥ 2 ตัว (กันตัดโจทย์ที่ขึ้นบรรทัดใหม่)
+    const nk = noteKind(l);
+    if (nk === 'strong' || (nk === 'weak' && (!cur || cur.choices.length >= 2))) { flush(); pendingNote.push(l); continue; }
     // ----- ตัวเลือก: จับตามคีย์ ก ข ค ง / a b c d / 1 2 3 4 ภายในบรรทัด (ได้หลายตัวเลือกต่อบรรทัด) -----
     // ต้องเช็คก่อนการจับ "เลขข้อ" เพื่อให้ "1. xxx  2. yyy" ที่เป็นตัวเลือกไม่ถูกเข้าใจผิดว่าเป็นโจทย์ข้อใหม่
     if (cur && !/^(?:เฉลย|คำตอบ|ตอบ|answer|ans)\s*[:：\-]/i.test(l)) {
@@ -519,10 +529,14 @@ function heuristicExtract(text) {
       // ตัวเลือกต่อท้ายโจทย์ในบรรทัดเดียวกัน เช่น "2. โจทย์? ก. ... ข. ... ค. ... ง. ..." (ต้องมีโจทย์นำหน้าและคีย์ตั้งแต่ 2 ตัวขึ้นไป)
       const inl = findChoiceRun(m[2], 0);
       if (inl && inl.style !== 'num' && inl.before && inl.items.length >= 2) { cur.qLines = [inl.before]; cur.choices = inl.items; cur.style = inl.style; }
-      if (pendingNote.length) { cur.note = pendingNote.join('\n'); pendingNote = []; }
+      if (pendingNote.length) { const note = joinNote(pendingNote); if (note) cur.note = note; pendingNote = []; }
       continue;
     }
-    if (!cur) continue;
+    if (!cur) {
+      // เนื้อเรื่อง/ข้อความที่ตามหลังหัวข้อ ก่อนถึงข้อแรกของช่วง → รวมเข้า section_note เดียวกัน (ข้ามเลขหน้าเดี่ยวๆ)
+      if (pendingNote.length && !/^(?:หน้า\s*)?\d{1,3}$|^page\s*\d+$/i.test(l)) pendingNote.push(l);
+      continue;
+    }
     if ((m = l.match(/^(?:เฉลย|คำตอบ|ตอบ|answer|ans)\s*[:：\-]?\s*(.+)$/i))) { cur.ans = m[1].trim(); continue; }
     // บรรทัดที่ไม่มีคีย์: ถ้าเริ่มมีตัวเลือกแล้วถือเป็นข้อความต่อบรรทัดของตัวเลือกล่าสุด ไม่งั้นเป็นส่วนของโจทย์
     if (cur.choices.length) cur.choices[cur.choices.length - 1] += ' ' + l;
@@ -671,16 +685,7 @@ app.put('/api/admin/users/:id/role', requireAuth, requireAdmin, ah(async (req, r
 }));
 
 // ---------- Exam taking: answers never leave the server until grading ----------
-// เซสชันทำข้อสอบเก็บในฐานข้อมูล (ไม่ใช่ memory) เพื่อไม่ให้หายเมื่อ Vercel สลับ instance/เซิร์ฟเวอร์รีสตาร์ต
-// จึงทำข้อสอบนานๆ แล้วกดส่งได้ เก็บ id ข้อสอบ+ลำดับที่สุ่มไว้ ส่วนเฉลยอ่านจาก DB ตอนตรวจเท่านั้น
-async function loadSession(sid) {
-  const row = await db.prepare('SELECT * FROM exam_sessions WHERE id=?').get(sid);
-  if (!row) return null;
-  const ids = JSON.parse(row.qids);
-  const all = await db.prepare('SELECT * FROM questions WHERE set_id=?').all(row.set_id);
-  const byId = new Map(all.map(q => [q.id, q]));
-  return { qs: ids.map(id => byId.get(id)).filter(Boolean), setId: row.set_id, setTitle: row.set_title, mode: row.mode, startedAt: row.started_at, resultId: row.result_id };
-}
+const sessions = new Map(); // sessionId -> { qs:[fullQuestion...], setId, setTitle, mode, startedAt }
 const sanitizeQ = q => ({ id: q.id, type: q.type, q: q.q, q_image: q.q_image, section_note: q.section_note || null, choices: q.choices ? JSON.parse(q.choices).map(c => ({ text: c.text, image: c.image })) : null });
 
 app.post('/api/exam/start', ah(async (req, res) => {
@@ -692,8 +697,7 @@ app.post('/api/exam/start', ah(async (req, res) => {
   if (shuffle) qs = qs.slice().sort(() => Math.random() - 0.5);
   if (!qs.length) return res.status(400).json({ error: 'ชุดข้อสอบนี้ไม่มีข้อสอบในรูปแบบที่เลือก' });
   const sessionId = uuid();
-  await db.prepare('INSERT INTO exam_sessions (id,set_id,set_title,mode,qids,started_at) VALUES (?,?,?,?,?,?)')
-    .run(sessionId, setId, s.title, mode === 'p' ? 'p' : 'm', JSON.stringify(qs.map(q => q.id)), Date.now());
+  sessions.set(sessionId, { qs, setId, setTitle: s.title, mode: mode === 'p' ? 'p' : 'm', startedAt: Date.now() });
   res.json({ sessionId, set: { title: s.title, time: s.time }, questions: qs.map(sanitizeQ) });
 }));
 
@@ -709,23 +713,18 @@ function rightAnswerText(q) {
   return (c && c.text) ? c.text : `ตัวเลือก ${ANSWER_LETTERS[idx] || idx + 1} (รูปภาพ)`;
 }
 
-app.post('/api/exam/:sid/check', ah(async (req, res) => {
-  const sess = await loadSession(req.params.sid);
+app.post('/api/exam/:sid/check', (req, res) => {
+  const sess = sessions.get(req.params.sid);
   if (!sess) return res.status(410).json({ error: 'เซสชันหมดอายุ กรุณาเริ่มทำข้อสอบใหม่' });
   const q = sess.qs.find(x => x.id === req.body.questionId);
   if (!q) return res.status(404).json({ error: 'ไม่พบข้อสอบข้อนี้' });
   const ok = gradeOne(q, req.body.answer);
   res.json({ ok, rightAnswer: rightAnswerText(q), rightIndex: q.type === 'mc' ? JSON.parse(q.answer) : null, explanation: q.explanation || '' });
-}));
+});
 
 app.post('/api/exam/:sid/submit', ah(async (req, res) => {
-  const sess = await loadSession(req.params.sid);
+  const sess = sessions.get(req.params.sid);
   if (!sess) return res.status(410).json({ error: 'เซสชันหมดอายุ กรุณาเริ่มทำข้อสอบใหม่' });
-  // กดส่งซ้ำ (เช่น เน็ตสะดุดแล้วไม่แน่ใจว่าส่งสำเร็จ) -> คืนผลเดิม ไม่บันทึกซ้ำ
-  if (sess.resultId) {
-    const r = await db.prepare('SELECT * FROM results WHERE id=?').get(sess.resultId);
-    if (r) return res.json({ id: r.id, score: r.score, total: r.total, sec: r.sec, away: r.away, mode: r.mode, title: r.set_title, detail: JSON.parse(r.detail) });
-  }
   const { answers = {}, sec = 0, away = 0, guestName } = req.body || {};
   const detail = sess.qs.map(q => {
     const a = answers[q.id];
@@ -738,7 +737,7 @@ app.post('/api/exam/:sid/submit', ah(async (req, res) => {
     detail: JSON.stringify(detail), created_at: Date.now(),
   };
   await db.prepare('INSERT INTO results (id,user_id,guest_name,set_id,set_title,mode,score,total,sec,away,detail,created_at) VALUES (@id,@user_id,@guest_name,@set_id,@set_title,@mode,@score,@total,@sec,@away,@detail,@created_at)').run(result);
-  await db.prepare('UPDATE exam_sessions SET result_id=? WHERE id=?').run(result.id, req.params.sid);
+  sessions.delete(req.params.sid);
   res.json({ id: result.id, score, total: detail.length, sec: result.sec, away: result.away, mode: result.mode, title: sess.setTitle, detail });
 }));
 
@@ -768,11 +767,8 @@ const rooms = new Map(); // pin -> room state
 const socketRoom = new Map(); // socket.id -> pin
 const QUESTION_SECONDS = 20;
 const clampInt = (v, lo, hi, d) => { v = Math.round(+v); return Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : d; };
-// โหมดแข่งขัน: เวลาต่อข้อ = ค่าที่โฮสต์ตั้งไว้ + เวลาอ่านเพิ่มถ้าข้อนั้นมีคำสั่ง/คำอธิบายช่วงตอน (section_note)
-// เวลาอ่านเพิ่มคิดตามความยาวคำสั่ง (ประมาณ 1 วินาทีต่อ 8 ตัวอักษร ขั้นต่ำ 10 สูงสุด 90 วินาที)
-// (โหมดสอบ/ทดสอบประกอบการสอนไม่จับเวลาเลย จึงไม่เกี่ยวกับฟังก์ชันนี้)
-const readingBonus = q => (q && q.section_note) ? Math.min(90, Math.max(10, Math.ceil(String(q.section_note).length / 8))) : 0;
-const questionSeconds = (room, q) => room.seconds + readingBonus(q);
+// โหมดแข่งขัน: เวลาต่อข้อ = ค่าที่โฮสต์ตั้งไว้ + เวลาอ่านเพิ่ม 10 วินาที ถ้าข้อนั้นมีคำสั่ง/คำอธิบายช่วงตอน (section_note)
+const questionSeconds = (room, q) => room.seconds + (q && q.section_note ? 10 : 0);
 const isExam = room => !!room && room.mode === 'exam';
 
 io.use((socket, next) => {
@@ -820,8 +816,7 @@ async function finishRoom(pin, room) {
 }
 
 // ---------- โหมดสอบ/ทดสอบประกอบการสอน (exam): ไม่จับเวลา ผู้สอบทำเองตามจังหวะตัวเอง โฮสต์ดูความคืบหน้าสด ----------
-// key = รหัสลับประจำตัวผู้สอบ (ส่งกลับให้เจ้าตัวตอน join) ใช้กลับเข้าห้องเดิมได้แม้เน็ตหลุด/รีโหลดหน้า โดยคนอื่นที่แค่รู้ชื่อเล่นสวมรอยไม่ได้
-const newPlayer = nick => ({ nickname: nick, key: uuid(), score: 0, answered: false, answers: {}, index: 0, away: 0, finished: false, finishedAt: null, connected: true, result: null });
+const newPlayer = nick => ({ nickname: nick, score: 0, answered: false, answers: {}, index: 0, finished: false, finishedAt: null, connected: true, result: null });
 function correctCount(room, p) {
   let n = 0;
   for (const q of room.set.qs) if (p.answers[q.id] !== undefined && gradeOne(q, p.answers[q.id])) n++;
@@ -831,18 +826,11 @@ function monitorPayload(room) {
   const total = room.set.qs.length;
   const players = [...room.players.values()].map(p => ({
     nickname: p.nickname, answered: Object.keys(p.answers).length, total, index: p.index,
-    finished: p.finished, connected: p.connected, away: p.away || 0, correct: correctCount(room, p),
+    finished: p.finished, connected: p.connected, correct: correctCount(room, p),
   }));
-  return { total, status: room.status, startedAt: room.startedAt || null, elapsed: room.startedAt ? Date.now() - room.startedAt : 0, players, finishedCount: players.filter(p => p.finished).length };
+  return { total, status: room.status, startedAt: room.startedAt || null, players, finishedCount: players.filter(p => p.finished).length };
 }
-// ส่งข้อมูล monitor ให้โฮสต์แบบหน่วง (รวมการเปลี่ยนแปลงถี่ๆ เป็นรอบละ ~400ms) กันห้องใหญ่ๆ ที่ทุกคนตอบพร้อมกันทำให้เซิร์ฟเวอร์คำนวณซ้ำรัวๆ
-const emitMonitor = room => {
-  if (!isExam(room) || !room.hostSocket || room.monitorTimer) return;
-  room.monitorTimer = setTimeout(() => {
-    room.monitorTimer = null;
-    if (room.hostSocket) io.to(room.hostSocket).emit('room:monitor', monitorPayload(room));
-  }, 400);
-};
+const emitMonitor = room => { if (isExam(room) && room.hostSocket) io.to(room.hostSocket).emit('room:monitor', monitorPayload(room)); };
 function submitPlayer(room, p) {
   if (p.finished) return p.result;
   const detail = room.set.qs.map(q => {
@@ -861,7 +849,7 @@ async function saveExamResults(room) {
     const sec = Math.max(0, Math.round(((p.finishedAt || Date.now()) - (room.startedAt || Date.now())) / 1000));
     try {
       await db.prepare('INSERT INTO results (id,user_id,guest_name,set_id,set_title,mode,score,total,sec,away,detail,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)')
-        .run(uuid(), null, p.nickname + ' (ห้องสอบ)', room.setId, room.set.title, 'm', p.result.score, p.result.total, sec, p.away || 0, JSON.stringify(p.result.detail), Date.now());
+        .run(uuid(), null, p.nickname + ' (ห้องสอบ)', room.setId, room.set.title, 'm', p.result.score, p.result.total, sec, 0, JSON.stringify(p.result.detail), Date.now());
     } catch (err) { console.error('บันทึกผลห้องสอบไม่สำเร็จ:', p.nickname, err); }
   }
 }
@@ -870,7 +858,7 @@ async function finishExam(room) {
   room.players.forEach(p => submitPlayer(room, p)); // ใครยังไม่กดส่ง ส่งให้อัตโนมัติ
   room.status = 'ended';
   const board = [...room.players.values()].map(p => ({
-    nickname: p.nickname, score: p.result.score, total: p.result.total, away: p.away || 0,
+    nickname: p.nickname, score: p.result.score, total: p.result.total,
     sec: Math.max(0, Math.round(((p.finishedAt || Date.now()) - (room.startedAt || Date.now())) / 1000)),
   })).sort((a, b) => b.score - a.score || a.sec - b.sec);
   // ผู้สอบเห็นเฉพาะผลของตัวเอง (และเฉพาะเมื่อโฮสต์เปิดให้เห็นคะแนน) ส่วนโฮสต์เห็นตารางทั้งห้อง
@@ -879,10 +867,9 @@ async function finishExam(room) {
   await saveExamResults(room);
 }
 const joinPayload = (room, p) => {
-  const base = { ok: true, title: room.set.title, mode: room.mode, showScore: room.showScore, nickname: p.nickname, key: p.key };
+  const base = { ok: true, title: room.set.title, mode: room.mode, showScore: room.showScore };
   if (!isExam(room) || room.status === 'lobby') return base;
-  if (room.status === 'ended') return { ...base, ended: true, mine: room.showScore && p.result ? { score: p.result.score, total: p.result.total } : null };
-  return { ...base, running: true, startedAt: room.startedAt, elapsed: Date.now() - room.startedAt, total: room.set.qs.length, questions: room.set.qs.map(sanitizeQ),
+  return { ...base, running: true, startedAt: room.startedAt, total: room.set.qs.length, questions: room.set.qs.map(sanitizeQ),
     answers: p.answers, index: p.index, finished: p.finished, mine: p.finished && room.showScore ? { score: p.result.score, total: p.result.total } : null };
 };
 
@@ -917,20 +904,18 @@ io.on('connection', socket => {
     room.hostSocket = socket.id;
     socketRoom.set(socket.id, pin);
     socket.join('pin:' + pin);
-    cb && cb({ ok: true, pin, title: room.set.title, total: room.set.qs.length, mode: room.mode, status: room.status, showScore: room.showScore, seconds: room.seconds, monitor: isExam(room) ? monitorPayload(room) : null, players: playerList(room) });
+    cb && cb({ ok: true, pin, title: room.set.title, total: room.set.qs.length, mode: room.mode, status: room.status, monitor: isExam(room) ? monitorPayload(room) : null, players: playerList(room) });
   });
 
-  socket.on('player:join', ({ pin, nickname, key }, cb) => {
+  socket.on('player:join', ({ pin, nickname }, cb) => {
     const room = rooms.get(pin);
     if (!room) return cb && cb({ error: 'ไม่พบห้องนี้ ตรวจสอบ PIN อีกครั้ง' });
     const nick = String(nickname || '').trim().slice(0, 24) || 'ผู้เล่น';
     const exam = isExam(room);
-    // โหมดสอบ: ผู้สอบที่หลุด/รีโหลดหน้า กลับเข้ามาได้คำตอบที่ทำไว้คืน
-    //  - ถ้ามี key ที่ได้ตอน join ครั้งแรก ตรงกับผู้สอบคนเดิม -> รับช่วงต่อทันที (แม้เซิร์ฟเวอร์ยังไม่รู้ว่า socket เก่าหลุดไปแล้ว)
-    //  - ถ้าไม่มี key ใช้ชื่อเดิมได้เฉพาะเมื่อผู้สอบคนนั้นหลุดการเชื่อมต่ออยู่ (กันคนอื่นแย่งชื่อของคนที่ยังทำข้อสอบอยู่)
-    if (exam && room.status !== 'lobby') {
+    // โหมดสอบ: ผู้สอบที่หลุดไปแล้วกลับเข้ามาด้วยชื่อเดิม จะได้คำตอบที่ทำไว้คืน
+    if (exam && room.status === 'running') {
       for (const [sid, p] of room.players) {
-        if (p.nickname === nick && ((key && key === p.key) || (!key && !p.connected))) {
+        if (p.nickname === nick && !p.connected) {
           room.players.delete(sid); p.connected = true; room.players.set(socket.id, p);
           socketRoom.set(socket.id, pin); socket.join('pin:' + pin);
           emitMonitor(room);
@@ -1012,15 +997,6 @@ io.on('connection', socket => {
     const p = room && room.players.get(socket.id);
     if (!isExam(room) || !p || p.finished || !Number.isInteger(index)) return;
     p.index = Math.min(Math.max(index, 0), room.set.qs.length - 1);
-    emitMonitor(room);
-  });
-
-  // ผู้สอบสลับแท็บ/ออกจากหน้าจอระหว่างสอบ -> นับให้โฮสต์เห็นใน monitor (ไม่ได้บล็อกอะไร เป็นข้อมูลประกอบการดูแลห้องสอบ)
-  socket.on('player:away', ({ pin }) => {
-    const room = rooms.get(pin);
-    const p = room && room.players.get(socket.id);
-    if (!isExam(room) || !p || p.finished || room.status !== 'running') return;
-    p.away = (p.away || 0) + 1;
     emitMonitor(room);
   });
 

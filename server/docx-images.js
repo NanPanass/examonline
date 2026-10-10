@@ -2,12 +2,22 @@
 // ใช้ mammoth (แปลง docx → HTML พร้อมรูปแบบ data URI ตามลำดับในเอกสาร) + cheerio (อ่าน HTML)
 const mammoth = require('mammoth');
 const cheerio = require('cheerio');
+const { noteKind, joinNote } = require('./section-notes');   // ตัวจับหัวข้อ/คำสั่ง/เนื้อเรื่อง ใช้ร่วมกับ server.js
 
 const KEY_RE = /^\s*\(?([A-Ha-hก-ฌ])[.)]\s*/;        // A.  B)  ก.  ข)
 const NUM_RE = /^\s*(?:ข้อ\s*)?(\d{1,3})\s*[.)]\s*/;   // 1.  2)  ข้อ 3.
 const IMG_RE = /\[\[IMG:(\d+)\]\]/g;
 const LETTERS = 'ABCDEFGH', TH = 'กขคงจฉชซ';
 const letterIdx = ch => { const i = LETTERS.indexOf(ch.toUpperCase()); return i >= 0 ? i : TH.indexOf(ch); };
+
+// block ของข้อสอบที่เปิดอยู่มีตัวเลือกครบแล้วหรือยัง (มี "A." หรือ "ก." อย่างน้อย 1 บรรทัด)
+const blockHasChoices = b => !!b && b.some(l => KEY_RE.test(l) || splitInlineChoices(l).length >= 2);
+// ย่อหน้านี้เป็นจุดเริ่ม "ข้อความอธิบาย" (หัวข้อ/คำสั่ง/เนื้อเรื่อง) ที่ต้องตัดออกจากข้อสอบข้อก่อนหน้าหรือไม่
+//  - strong: ตัดเสมอ  - weak (เช่น "Choose the best answer."): ตัดเฉพาะเมื่อข้อก่อนหน้ามีตัวเลือกแล้ว/ไม่ได้อยู่กลางข้อ
+function startsNote(l, flowOpen, lastBlock) {
+  const k = noteKind(l);
+  return k === 'strong' || (k === 'weak' && (!flowOpen || blockHasChoices(lastBlock)));
+}
 
 async function docxToBlocks(buffer) {
   const images = [];
@@ -26,7 +36,19 @@ async function docxToBlocks(buffer) {
   // block = ข้อความทีละย่อหน้าใน "เซลล์ตาราง" หรือ "ย่อหน้านอกตาราง" ตามลำดับเอกสารจริง
   const blocks = []; let flowOpen = false;
   $('body').children().each((_, el) => {
-    if (el.tagName === 'table') { flowOpen = false; $(el).find('td,th').each((_, td) => blocks.push($(td).find('p').map((_, p) => lineOf(p)).get().filter(Boolean))); }
+    if (el.tagName === 'table') {
+      flowOpen = false;
+      $(el).find('tr').each((_, tr) => {
+        const cells = $(tr).find('td,th').map((_, td) => $(td).find('p').map((_, p) => lineOf(p)).get().filter(Boolean)).get();
+        // ตารางเฉลย: แถวที่เป็นคู่ [เลขข้อ, ตัวเลือก] เรียงซ้ำ เช่น 1 | C | 11 | B | 21 | D → แปลงเป็น "1. C" "11. B" "21. D"
+        const pairs = [];
+        for (let i = 0; i + 1 < cells.length; i += 2) {
+          if (/^\d{1,3}$/.test(cells[i]) && /^[A-Ha-hก-ฌ]$/.test(cells[i + 1])) pairs.push(cells[i] + '. ' + cells[i + 1]);
+        }
+        if (pairs.length && pairs.length * 2 === cells.length) blocks.push(pairs);
+        else $(tr).find('td,th').each((_, td) => blocks.push($(td).find('p').map((_, p) => lineOf(p)).get().filter(Boolean)));
+      });
+    }
     else if (el.tagName === 'p') {
       // ย่อหน้านอกตาราง: เริ่ม block ใหม่ทุกครั้งที่เจอ "เลขข้อ." แล้วต่อย่อหน้าถัดไปเข้า block เดิมจนกว่าจะเจอเลขข้อใหม่
       const l = lineOf(el); if (!l) return;
@@ -34,6 +56,7 @@ async function docxToBlocks(buffer) {
       if (isKeyLine) { blocks.push([l]); flowOpen = false; }
       else if (NUM_RE.test(l)) { blocks.push([l]); flowOpen = true; }
       else if (/^\s*(?:เฉลย|คำตอบ|answer)/i.test(l)) { blocks.push([l]); flowOpen = false; }   // หัวข้อเฉลย ตัด block ก่อนหน้า
+      else if (startsNote(l, flowOpen, blocks[blocks.length - 1])) { blocks.push([l]); flowOpen = false; }   // หัวข้อ/คำสั่ง/เนื้อเรื่อง ต้องไม่ไหลไปต่อท้ายตัวเลือกข้อก่อนหน้า
       else if (flowOpen) blocks[blocks.length - 1].push(l);
       else blocks.push([l]);
     }
@@ -41,8 +64,28 @@ async function docxToBlocks(buffer) {
   return { blocks, images };
 }
 
+// แตกบรรทัดที่มีตัวเลือกหลายตัว เช่น "A. cat\tB. bird\tC. dog\tD. fish" ให้เป็นหลายบรรทัด
+// ตัดเฉพาะจุดที่ตัวอักษรเรียงต่อกันจริง (A→B→C→D / ก→ข→ค→ง) เพื่อไม่ตัดผิดกลางประโยค
+function splitInlineChoices(line) {
+  const re = /(?:^|\s)\(?([A-Ha-hก-ฌ])[.)]\s+/g;
+  const cuts = []; let expect = -1, m;
+  while ((m = re.exec(line))) {
+    const i = letterIdx(m[1]);
+    if (expect === -1 ? i === 0 : i === expect) {
+      cuts.push(m.index + (m[0].length - m[0].trimStart().length));
+      expect = i + 1;
+    }
+  }
+  if (cuts.length < 2) return [line];
+  const out = [];
+  if (cuts[0] > 0) out.push(line.slice(0, cuts[0]).trim());
+  cuts.forEach((c, k) => out.push(line.slice(c, cuts[k + 1]).trim()));
+  return out.filter(Boolean);
+}
+
 // อ่าน 1 block เป็นข้อสอบปรนัย: "N." → (ข้อความ/รูปโจทย์) → "A." "B." ... (ข้อความ/รูปตัวเลือก)
 function parseQuestionBlock(lines, images) {
+  lines = lines.flatMap(splitInlineChoices);   // รองรับตัวเลือกหลายตัวในบรรทัดเดียว
   let num = null, mode = 'q'; const q = { text: [], img: null }, ch = [];
   for (let raw of lines) {
     let line = raw;
@@ -67,11 +110,20 @@ function parseKeyBlock(lines) {
 async function extractDocxExam(buffer) {
   const { blocks, images } = await docxToBlocks(buffer);
   const questions = [], key = {};
+  // pending = ข้อความอธิบายที่รอผูกกับ "ข้อถัดไป" (หัวข้อ + คำสั่ง + เนื้อเรื่อง ที่อยู่ติดกัน รวมเป็น note เดียว)
+  let pending = [];
   for (const b of blocks) {
     const k = parseKeyBlock(b);
     if (Object.keys(k).length) { Object.assign(key, k); continue; }
     const q = parseQuestionBlock(b, images);
-    if (q) questions.push(q);
+    if (q) {
+      if (pending.length) { const note = joinNote(pending); if (note) q.note = note; pending = []; }
+      questions.push(q);
+      continue;
+    }
+    if (noteKind(b[0])) pending.push(...b);        // เริ่ม/ต่อหัวข้อ-คำสั่ง
+    else if (pending.length) pending.push(...b);   // ย่อหน้าเนื้อเรื่องที่ตามหลังหัวข้อ (ก่อนถึงข้อแรกของช่วง)
+    // ไม่ใช่ทั้งสองอย่าง และไม่มี note ค้าง = ข้อความอื่นในไฟล์ (ชื่อเรื่อง ช่องกรอกชื่อ หัวเฉลย) ข้ามไป
   }
   // รูปแบบเดียวกับที่หน้า "นำเข้าจากไฟล์" เดิมใช้อยู่: ch = ข้อความตัวเลือก, chImg = รูปของตัวเลือก
   return questions.map(q => ({
@@ -79,6 +131,7 @@ async function extractDocxExam(buffer) {
     ch: q.ch.map(c => c.text), chImg: q.ch.map(c => c.image),
     a: Number.isInteger(key[q.num]) ? key[q.num] : 0, ex: '',
     keyFound: q.num in key,
+    ...(q.note ? { section_note: q.note } : {}),
   }));
 }
 module.exports = { extractDocxExam, docxToBlocks };
