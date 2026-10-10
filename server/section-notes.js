@@ -27,6 +27,8 @@ const STRONG = [
   new RegExp(`^(?:ส่วนที่|ภาคที่|ภาค|หมวด|ตอน|บทที่|ชุดที่|ชุด)\\s*(?:${ID})(?![ก-๙A-Za-z])`),
   // --- คำสั่ง / คำอธิบายโจทย์ (ภาษาไทย) ---
   /^(?:คำสั่ง|คำชี้แจง|คำอธิบาย|คำแนะนำ|วิธีทำ|วิธีตอบ|วิธีการตอบ|ข้อกำหนด|หมายเหตุ|ตัวอย่าง|โจทย์ร่วม|ข้อมูลประกอบ)(?![ก-๙])/,
+  // --- หัวข้อไทยแบบ "<ชนิด>ที่ N" เช่น "บทอ่านที่ 5" "เรื่องที่ 2" "กิจกรรมที่ 3" "ใบงานที่ 1" (ของเดิมตกเพราะ lookahead (?![ก-๙]) ชน "ที่") ---
+  new RegExp(`^(?:บทอ่าน|บทความ|เนื้อเรื่อง|เรื่อง|ข้อความ|แบบฝึกหัด|แบบทดสอบ|กิจกรรม|ใบงาน|สถานการณ์|บทสนทนา|บทประพันธ์|บทร้อยกรอง|นิทาน|เรื่องสั้น|จดหมาย|ประกาศ|ตาราง|แผนภาพ|แผนภูมิ|กราฟ|รูปภาพ|ภาพ)\\s*ที่\\s*(?:${ID})(?![ก-๙A-Za-z])`),
   // --- เนื้อเรื่อง / ข้อความที่ใช้ตอบข้อถัดไป (ภาษาไทย) ---
   /^(?:บทความ|บทอ่าน|เนื้อเรื่อง|เรื่องสั้น|นิทาน|บทสนทนา|บทประพันธ์|ข้อความต่อไปนี้|ข้อมูลต่อไปนี้|สถานการณ์)(?![ก-๙])/,
   // --- โครงสร้างหัวข้อ (อังกฤษ): ต้องมีเลข/ตัวอักษรตามหลัง เช่น Part 1, Section B, Unit 3 ---
@@ -54,6 +56,20 @@ const WEAK = [
   /^(?:read|look|listen|study|choose|circle|select|match|complete|fill|answer|use|underline|write|put|decide|find|identify|observe|check|tick|mark|rearrange|arrange|number|name|say|think|choose)\s+\S+/i,
 ];
 
+// ---------- กฎช่วงเลขข้อ ----------
+// บรรทัดที่มีป้ายช่วงข้อ เช่น "(ข้อ 21–25)" "ข้อที่ 1-10" "Questions 5 to 7" "ข้อ 5 และ 6" ไม่ว่าจะขึ้นต้นด้วยคำอะไร
+// (บทอ่านที่ / ตอนที่ / ขั้นตอน / ชื่อเรื่องอะไรก็ได้) = หัวข้อ/คำอธิบายช่วงตอน → ต้องเป็น section_note ของข้อที่อยู่ด้านล่างเสมอ
+const THAI_DIGITS = '๐๑๒๓๔๕๖๗๘๙';
+const toAr = s => String(s || '').replace(/[๐-๙]/g, d => THAI_DIGITS.indexOf(d));
+// ต้องมีเลข 2 ตัวคั่นด้วย - – — ~ ถึง to through และ and & (ไม่จับ "(30 ข้อ)" ซึ่งเป็นจำนวนข้อ)
+const RANGE_LABEL = /(?:ข้อที่|ข้อ|questions?|items?|nos?\.?|q\.?)\s*(\d{1,3})\s*(?:[-–—~]|ถึง|to|through|และ|and|&)\s*(\d{1,3})(?!\d)/i;
+function rangeOf(line) {
+  const m = toAr(String(line || '').replace(/\[\[IMG:\d+\]\]/g, ' ')).match(RANGE_LABEL);
+  if (!m) return null;
+  const a = +m[1], b = +m[2];
+  return b >= a ? { start: a, end: b } : null;
+}
+
 function clean(line) { return String(line || '').replace(/\[\[IMG:\d+\]\]/g, ' ').replace(/\s+/g, ' ').replace(LEAD, '').trim(); }
 
 function noteKind(line) {
@@ -63,6 +79,7 @@ function noteKind(line) {
   const t = clean(raw);
   if (!t || ANSWER_HEAD.test(t) || ANSWER_LINE.test(t)) return null;
   if (STRONG.some(re => re.test(t))) return 'strong';
+  if (t.length <= 300 && rangeOf(t)) return 'strong';   // ป้ายช่วงข้อ (ข้อ N–M) ในหัวข้อใดๆ
   if (WEAK.some(re => re.test(t))) return 'weak';
   return null;
 }
@@ -80,4 +97,18 @@ function joinNote(lines) {
   return out.join('\n');
 }
 
-module.exports = { noteKind, joinNote };
+// หัวข้อที่ถูกต่อท้ายบรรทัดเดียวกับตัวเลือก/โจทย์ (เช่น ขึ้นบรรทัดใหม่ด้วย Shift+Enter ใน Word หรือไฟล์ข้อความที่ย่อหน้าหาย):
+//   "D. ควรเลิกเมื่อพบอุปสรรค บทอ่านที่ 5 (ข้อ 21–25): ขั้นตอน" → ["D. ควรเลิกเมื่อพบอุปสรรค", "บทอ่านที่ 5 (ข้อ 21–25): ขั้นตอน"]
+// ตัดเฉพาะเมื่อส่วนท้ายขึ้นต้นด้วยคำหัวข้อ + เลข และมีป้ายช่วงข้อ (ข้อ N–M) — กันตัดผิดกลางประโยคทั่วไป
+const GLUED_HEAD = /^(.*?\S)\s+((?:ส่วนที่|ตอนที่|บทอ่านที่|บทความที่|หมวดที่|ภาคที่|เรื่องที่|กิจกรรมที่|ใบงานที่|แบบฝึกหัดที่|part|passage|section|text|reading|story|dialogue|unit)\s*[0-9๐-๙A-Za-zก-ฮ]{1,3}(?![A-Za-zก-๙]).*)$/i;
+function splitGluedHeading(line) {
+  const raw = String(line ?? '');
+  if (!raw.trim()) return [raw];
+  if (noteKind(raw) === 'strong') return [raw];            // ทั้งบรรทัดเป็นหัวข้ออยู่แล้ว ไม่ต้องแยก
+  const m = raw.match(GLUED_HEAD);
+  if (!m) return [raw];
+  const tail = m[2].trim();
+  return (rangeOf(tail) && noteKind(tail) === 'strong') ? [m[1].trim(), tail] : [raw];
+}
+
+module.exports = { noteKind, joinNote, rangeOf, splitGluedHeading };

@@ -16,7 +16,8 @@ const multer = require('multer');
 const mammoth = require('mammoth');
 // ตัวดึงรูปจากไฟล์ Word (ไม่บังคับ): ถ้าโหลดไม่ได้ (เช่น ยังไม่ได้ npm install cheerio) เซิร์ฟเวอร์ต้องไม่ล่ม แค่ข้ามฟีเจอร์นี้
 const { redistributeNotes, repairMergedChoices, reconcileChoices } = require('./exam-fixups');   // กระจาย section_note ตามช่วงข้อที่ระบุ + แก้ตัวเลือกที่ถูกรวมกัน (C+D)
-const { noteKind, joinNote } = require('./section-notes');   // ตัวจับหัวข้อ/คำสั่ง/เนื้อเรื่อง (section_note) ใช้ร่วมกับ docx-images.js
+const { noteKind, joinNote, rangeOf, splitGluedHeading } = require('./section-notes');   // ตัวจับหัวข้อ/คำสั่ง/เนื้อเรื่อง (section_note) ใช้ร่วมกับ docx-images.js
+const { applyNoteRegions, isRealQuestionStart } = require('./note-regions');   // หัวข้อที่ระบุ (ข้อ N–M) + กล่องเนื้อหาใต้หัวข้อ → section_note ของข้อแรกในช่วงเสมอ
 let extractDocxExam = null, extractDocxKey = null, docxRawText = null;
 try { ({ extractDocxExam, extractDocxKey, docxRawText } = require('./docx-images')); }
 catch (e) { console.warn('[import] ข้ามการดึงรูปจาก .docx เพราะโหลด docx-images ไม่ได้:', e.message); }
@@ -135,6 +136,9 @@ app.delete('/api/admin/sets/:id', requireAuth, requireAdmin, ah(async (req, res)
 // รูปประกอบ (ไม่บังคับ): รับเฉพาะ data URI ของ png/jpg/webp/gif ที่ได้จาก /api/upload เท่านั้น ค่าอื่นถูกทิ้งเป็น null
 const IMG_DATA_RE = /^data:image\/(?:png|jpe?g|webp|gif);base64,[A-Za-z0-9+\/=]+$/;
 const MAX_IMG_CHARS = 2 * 1024 * 1024;
+// section_note ต้องเป็นข้อความเท่านั้น (กัน client ส่ง object/ตัวเลขมาแล้ว .trim() พัง) และจำกัดความยาวไม่ให้แถวข้อมูลบวมเกินไป
+const NOTE_LIMIT = 8000;
+const cleanNote = v => (typeof v === 'string' ? v.trim().slice(0, NOTE_LIMIT) : '') || null;
 const cleanImg = v => (typeof v === 'string' && v.length <= MAX_IMG_CHARS && IMG_DATA_RE.test(v)) ? v : null;
 const cleanChoice = c => (c && typeof c === 'object')
   ? { text: String(c.text ?? '').trim(), image: cleanImg(c.image) }
@@ -165,7 +169,7 @@ app.post('/api/admin/sets/:id/questions', requireAuth, requireAdmin, ah(async (r
   if (!s) return res.status(404).json({ error: 'ไม่พบชุดข้อสอบ' });
   const ord = (await db.prepare('SELECT COALESCE(MAX(ord),-1)+1 n FROM questions WHERE set_id=?').get(s.id)).n;
   const b = req.body;
-  const q = { id: uuid(), set_id: s.id, ord, type: b.type, q: b.q, q_image: b.q_image || null, choices: b.type === 'mc' ? JSON.stringify(b.choices) : null, answer: JSON.stringify(b.answer), explanation: b.explanation || '', section_note: (b.section_note || '').trim() || null };
+  const q = { id: uuid(), set_id: s.id, ord, type: b.type, q: b.q, q_image: b.q_image || null, choices: b.type === 'mc' ? JSON.stringify(b.choices) : null, answer: JSON.stringify(b.answer), explanation: b.explanation || '', section_note: cleanNote(b.section_note) };
   await db.prepare('INSERT INTO questions (id,set_id,ord,type,q,q_image,choices,answer,explanation,section_note) VALUES (@id,@set_id,@ord,@type,@q,@q_image,@choices,@answer,@explanation,@section_note)').run(q);
   res.json({ ...q, choices: b.type === 'mc' ? b.choices : null, answer: b.answer });
 }));
@@ -176,7 +180,7 @@ app.put('/api/admin/questions/:id', requireAuth, requireAdmin, ah(async (req, re
   if (!existing) return res.status(404).json({ error: 'ไม่พบข้อสอบ' });
   const b = req.body;
   await db.prepare('UPDATE questions SET type=@type,q=@q,q_image=@q_image,choices=@choices,answer=@answer,explanation=@explanation,section_note=@section_note WHERE id=@id')
-    .run({ id: existing.id, type: b.type, q: b.q, q_image: b.q_image || null, choices: b.type === 'mc' ? JSON.stringify(b.choices) : null, answer: JSON.stringify(b.answer), explanation: b.explanation || '', section_note: (b.section_note || '').trim() || null });
+    .run({ id: existing.id, type: b.type, q: b.q, q_image: b.q_image || null, choices: b.type === 'mc' ? JSON.stringify(b.choices) : null, answer: JSON.stringify(b.answer), explanation: b.explanation || '', section_note: cleanNote(b.section_note) });
   res.json({ ok: true });
 }));
 app.delete('/api/admin/questions/:id', requireAuth, requireAdmin, ah(async (req, res) => {
@@ -237,6 +241,8 @@ const IMPORT_PROMPT = `คุณคือผู้ช่วยแยกข้อ
 - ห้ามนำข้อความประเภทเหล่านี้ไปต่อท้ายโจทย์หรือตัวเลือกของข้อก่อนหน้า (เช่น หัวข้อ "ตอนที่ 2" ที่อยู่ถัดจากตัวเลือกสุดท้ายของข้อ 10 ไม่ใช่ส่วนหนึ่งของตัวเลือกนั้น)
 - ห้ามใส่ลงใน section_note: ตัวโจทย์ ตัวเลือก หัวเฉลย/ตารางเฉลย หน้าปก ช่องกรอกชื่อ-นามสกุล-คะแนน เลขหน้า
 - ข้อคำถามที่ไม่ได้อยู่ต้นช่วงไม่ต้องมีฟิลด์ section_note เลย (อย่าใส่เป็นค่าว่าง ให้ไม่ต้องมี key นี้)
+- กฎเหล็กเรื่องป้ายช่วงข้อ: บรรทัดใดก็ตามที่มีป้ายช่วงเลขข้อ เช่น \"(ข้อ 21–25)\" \"ข้อที่ 1-10\" \"Questions 5-7\" ไม่ว่าจะขึ้นต้นด้วยคำอะไร (บทอ่านที่ 5 / ตอนที่ 2 / ขั้นตอน / ชื่อเรื่อง) คือหัวข้อของช่วงตอน ต้องเป็น section_note ของข้อคำถามที่อยู่ \"ด้านล่าง\" หัวข้อนั้นเสมอ (ข้อแรกของช่วง) ห้ามต่อท้ายโจทย์หรือตัวเลือกของข้อที่อยู่ด้านบนเด็ดขาด แม้หัวข้อนั้นจะอยู่ติดกับตัวเลือกสุดท้ายของข้อก่อนหน้า
+- เนื้อหาที่อยู่ใต้หัวข้อนั้นจนถึงข้อคำถามแรกของช่วง (กล่อง/ตาราง/บทอ่าน/รายการขั้นตอน) ต้องรวมเข้า section_note เดียวกันทั้งหมด ห้ามแตกเป็นข้อสอบ แม้จะมีเลขนำหน้า \"1. 2. 3.\" ก็ตาม: ถ้ารายการเลขนั้นไม่มีตัวเลือก A/B/C/D หรือ ก/ข/ค/ง และเลขข้อของมันไม่ตรงกับข้อเริ่มต้นของช่วงที่หัวข้อระบุ (เช่น หัวข้อบอกข้อ 21–25 แต่รายการเลขเริ่มที่ 1) ให้ถือเป็นส่วนหนึ่งของเนื้อหา ไม่ใช่ข้อสอบ — ข้อสอบข้อแรกของช่วงคือข้อที่มีเลขตรงกับข้อเริ่มต้นนั้น (ในตัวอย่างคือข้อ 21) และต้องไม่นับรายการเลขในกล่องเป็นข้อสอบเพราะจะทำให้จำนวนข้อและการจับคู่เฉลยผิดทั้งชุด
 - ถ้าเอกสารไม่มีข้อความแบบนี้เลย ไม่ต้องใส่ section_note ในข้อใดเลย`;
 
 async function callClaudeExtract({ text, fileBuffer, mediaType }) {
@@ -394,10 +400,16 @@ function applyKeyToList(list, text) {
   const start = findAnswerKeyStart(String(text).split('\n').map(l => l.trim()));
   if (!start) return { changed: 0, checked: 0 };
   const entries = parseAnswerKey(start.body), nums = Object.keys(entries).map(Number);
-  if (!nums.length || Math.max(...nums) !== list.length) return { changed: 0, checked: 0 };
+  if (!nums.length) return { changed: 0, checked: 0 };
+  // จับคู่ตาม "เลขข้อที่พิมพ์ในเอกสาร" (num) เมื่อทุกข้อมีเลขไม่ซ้ำกัน และเฉลยครอบคลุมอย่างน้อย 60% ของข้อ — ใช้ได้แม้เอกสารเริ่มนับที่ข้อ 16 หรือมีเลขข้ามช่วง
+  // (วิธีเดิมจับตาม \"ลำดับในรายการ\" ซึ่งใช้ได้เฉพาะเอกสารที่เริ่มที่ข้อ 1 และจำนวนข้อเท่ากับเลขข้อสุดท้ายในเฉลยเป๊ะ)
+  const numOf = it => (it && it.num != null && it.num !== '' && Number.isInteger(+it.num)) ? +it.num : null;
+  const byNum = list.length > 0 && list.every(it => numOf(it) !== null) && new Set(list.map(numOf)).size === list.length
+    && list.filter(it => entries[numOf(it)]).length >= Math.ceil(list.length * 0.6);
+  if (!byNum && Math.max(...nums) !== list.length) return { changed: 0, checked: 0 };
   let changed = 0, checked = 0;
   list.forEach((it, i) => {
-    const rest = entries[i + 1]; if (!it || rest == null || rest === '') return;
+    const rest = byNum ? entries[numOf(it)] : entries[i + 1]; if (!it || rest == null || rest === '') return;
     if (it.t === 'mc' && Array.isArray(it.ch)) {
       const r = resolveKeyEntry(rest, it.ch); if (!r) return;
       checked++;
@@ -478,7 +490,7 @@ function findChoiceRun(line, startIdx = 0) {
 
 function heuristicExtract(text) {
   const T = ANSWER_LETTERS;
-  const allLines = text.split('\n').map(l => l.trim());
+  const allLines = text.split('\n').map(l => l.trim()).flatMap(l => splitGluedHeading(l));   // แยกหัวข้อที่ติดท้ายบรรทัดตัวเลือกออกเป็นบรรทัดของตัวเอง
   // ----- แยกหน้าเฉลยแยกท้ายเอกสารออกก่อน (บรรทัดที่เป็นหัวข้อ "เฉลย"/"คำตอบ" ล้วนๆ ไม่มีคำตอบติดอยู่ในบรรทัดเดียวกัน) -----
   // ต้องตัดออกจากส่วนที่จะพาร์สเป็นโจทย์ก่อน ไม่งั้นเนื้อหาในหน้าเฉลย (เช่น "1. ข  2. ก") จะถูกเข้าใจผิดว่าเป็นข้อสอบข้อใหม่
   const keyStart = findAnswerKeyStart(allLines);
@@ -486,7 +498,7 @@ function heuristicExtract(text) {
   const keyText = keyStart ? keyStart.body : '';
 
   const out = [];
-  let cur = null, pendingNote = [];
+  let cur = null, pendingNote = [], pendingRange = null;   // pendingRange = เลขข้อเริ่มต้นที่หัวข้อล่าสุดระบุ ("ข้อ 21–25" → 21)
   const flush = () => {
     if (!cur) return;
     const q = cur.qLines.join(' ').trim();
@@ -516,7 +528,9 @@ function heuristicExtract(text) {
     // ----- หัวข้อ/คำสั่ง/เนื้อเรื่อง → section_note (ตอนที่ หมวดที่ คำสั่ง Part Directions Passage Phrase "ตอบคำถามข้อ 5-7" ฯลฯ) -----
     // strong = ตัดโจทย์ที่เปิดอยู่ทันที | weak ("จงเลือก..." "Choose the...") = นับเป็น note เฉพาะเมื่อยังไม่เริ่มข้อ หรือข้อก่อนหน้ามีตัวเลือกแล้ว ≥ 2 ตัว (กันตัดโจทย์ที่ขึ้นบรรทัดใหม่)
     const nk = noteKind(l);
-    if (nk === 'strong' || (nk === 'weak' && (!cur || cur.choices.length >= 2))) { flush(); pendingNote.push(l); continue; }
+    if (nk === 'strong' || (nk === 'weak' && (!cur || cur.choices.length >= 2))) { flush(); pendingNote.push(l); const rg = rangeOf(l); if (rg) pendingRange = rg.start; continue; }
+    // รายการเลขในกล่องเนื้อหาใต้หัวข้อที่ระบุช่วงข้อ (เช่น ขั้นตอน 1–5 ใต้ "บทอ่านที่ 5 (ข้อ 21–25)") ไม่ใช่ข้อสอบ → เป็นส่วนของ section_note
+    if (!cur && pendingRange != null && pendingNote.length && /^\s*(?:ข้อ\s*)?[0-9๐-๙]{1,3}\s*[.)]/.test(l) && !isRealQuestionStart(lines, li, pendingRange)) { pendingNote.push(l); continue; }
     // ----- ตัวเลือก: จับตามคีย์ ก ข ค ง / a b c d / 1 2 3 4 ภายในบรรทัด (ได้หลายตัวเลือกต่อบรรทัด) -----
     // ต้องเช็คก่อนการจับ "เลขข้อ" เพื่อให้ "1. xxx  2. yyy" ที่เป็นตัวเลือกไม่ถูกเข้าใจผิดว่าเป็นโจทย์ข้อใหม่
     if (cur && !/^(?:เฉลย|คำตอบ|ตอบ|answer|ans)\s*[:：\-]/i.test(l)) {
@@ -557,7 +571,7 @@ function heuristicExtract(text) {
       // ตัวเลือกต่อท้ายโจทย์ในบรรทัดเดียวกัน เช่น "2. โจทย์? ก. ... ข. ... ค. ... ง. ..." (ต้องมีโจทย์นำหน้าและคีย์ตั้งแต่ 2 ตัวขึ้นไป)
       const inl = findChoiceRun(m[2], 0);
       if (inl && inl.style !== 'num' && inl.before && inl.items.length >= 2) { cur.qLines = [inl.before]; cur.choices = inl.items; cur.style = inl.style; }
-      if (pendingNote.length) { const note = joinNote(pendingNote); if (note) cur.note = note; pendingNote = []; }
+      if (pendingNote.length) { const note = joinNote(pendingNote); if (note) cur.note = note; pendingNote = []; pendingRange = null; }
       continue;
     }
     if (!cur) {
@@ -648,6 +662,12 @@ app.post('/api/admin/import', requireAuth, requireAdmin, importUpload.single('fi
     const rm = repairMergedChoices(list, { shiftAnswer: true });            // ข้อความตัวเลือกที่ยังมี "D. xxx" ติดอยู่ในตัวเลือก C
     if (/^AI/.test(source)) redistributeNotes(list, it => (it.num != null && it.num !== '' && Number.isInteger(+it.num) ? +it.num : null));   // ตัวแยกสำรอง/ตัวอ่าน docx จัดการเองแล้วตามเลขข้อจริง
     if (rc || rm) source += ` + แก้ตัวเลือกที่ถูกรวมกัน ${rc + rm} ข้อ`;
+    // หัวข้อที่ระบุช่วงข้อ (ข้อ N–M) ไม่ว่าหัวข้อใด ต้องไปอยู่ section_note ของข้อแรกใต้หัวข้อเสมอ + รายการเลขในกล่องเนื้อหาห้ามเป็นข้อสอบ
+    // (ต้องทำก่อน applyKeyToList เพราะการจับเฉลยใช้ "ลำดับในรายการ" — ข้อเทียมที่เกินมาทำให้เฉลยเลื่อนผิดข้อทั้งชุด)
+    if (keySrcText) {
+      const nr = applyNoteRegions(list, keySrcText.split('\n'));
+      if (nr.removed || nr.cleaned || nr.moved) source += ` + จัดหัวข้อช่วงข้อเข้าช่องอธิบาย ${nr.regions} หัวข้อ${nr.removed ? ` (ตัดข้อเทียมในกล่องเนื้อหา ${nr.removed})` : ''}`;
+    }
   }
   // ตรวจทานซ้ำด้วยหน้าเฉลยท้ายไฟล์ (เฉพาะไฟล์ข้อความ): ถ้า AI จับคู่ผิด ให้ใช้ตัวอ่านเฉลยแบบกำหนดแน่นอนแก้ทับ
   if (keySrcText && Array.isArray(list)) {
@@ -670,15 +690,21 @@ app.post('/api/admin/sets/:id/questions/bulk', requireAuth, requireAdmin, ah(asy
   let ord = (await db.prepare('SELECT COALESCE(MAX(ord),-1)+1 n FROM questions WHERE set_id=?').get(s.id)).n;
   let added = 0;
   for (const it of items) {
+    if (!it || typeof it !== 'object') continue;
     const type = it.t === 'sa' ? 'sa' : 'mc';
-    const q = { id: uuid(), set_id: s.id, ord: ord++, type,
+    // ตรวจเหมือนเส้นทางเพิ่มข้อสอบรายข้อ (validQuestionBody): เฉลยปรนัยต้องเป็นเลขลำดับที่อยู่ในช่วงตัวเลือกจริง / อัตนัยต้องเป็นข้อความที่ไม่ว่าง
+    // (เดิมไม่ตรวจ ทำให้ client ส่งเฉลยนอกช่วงหรือไม่ใช่ตัวเลขเข้าฐานข้อมูลได้ แล้วตรวจคะแนนผิดทั้งข้อ)
+    const choices = type === 'mc' ? (Array.isArray(it.ch) ? it.ch : []).map(cleanChoice) : null;
+    const saAns = type === 'sa' ? (Array.isArray(it.a) ? it.a : []).map(x => String(x ?? '').trim()).filter(Boolean) : null;
+    const q = { id: uuid(), set_id: s.id, ord, type,
       q: String(it.q || '').trim(), q_image: cleanImg(it.q_image),
-      choices: type === 'mc' ? JSON.stringify((it.ch || []).map(cleanChoice)) : null,
-      answer: JSON.stringify(type === 'mc' ? it.a : (it.a || [])),
-      explanation: it.ex || '', section_note: (it.section_note || '').trim() || null };
+      choices: type === 'mc' ? JSON.stringify(choices) : null,
+      answer: JSON.stringify(type === 'mc' ? it.a : saAns),
+      explanation: String(it.ex || ''), section_note: cleanNote(it.section_note) };
     if (!q.q && !q.q_image) continue;
-    if (type === 'mc' && (!it.ch || it.ch.length < 2 || JSON.parse(q.choices).some(c => !c.text && !c.image))) continue;
-    if (type === 'sa' && (!it.a || !it.a.length)) continue;
+    if (type === 'mc' && (choices.length < 2 || choices.some(c => !c.text && !c.image) || !Number.isInteger(it.a) || it.a < 0 || it.a >= choices.length)) continue;
+    if (type === 'sa' && !saAns.length) continue;
+    ord++;
     await db.prepare('INSERT INTO questions (id,set_id,ord,type,q,q_image,choices,answer,explanation,section_note) VALUES (@id,@set_id,@ord,@type,@q,@q_image,@choices,@answer,@explanation,@section_note)').run(q);
     added++;
   }

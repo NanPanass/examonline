@@ -2,7 +2,7 @@
 // ใช้ mammoth (แปลง docx → HTML พร้อมรูปแบบ data URI ตามลำดับในเอกสาร) + cheerio (อ่าน HTML)
 const mammoth = require('mammoth');
 const cheerio = require('cheerio');
-const { noteKind, joinNote } = require('./section-notes');   // ตัวจับหัวข้อ/คำสั่ง/เนื้อเรื่อง ใช้ร่วมกับ server.js
+const { noteKind, joinNote, splitGluedHeading } = require('./section-notes');   // ตัวจับหัวข้อ/คำสั่ง/เนื้อเรื่อง ใช้ร่วมกับ server.js
 const { redistributeNotes, repairMergedChoices } = require('./exam-fixups');   // กระจาย note ตามช่วงข้อที่ระบุ + แก้ตัวเลือกที่ถูกรวมกัน
 const { parseKeyGrid } = require('./answer-table');   // อ่านตารางเฉลย (ข้อ|เฉลย) จากแถว×เซลล์จริง
 const keyLines = entries => Object.keys(entries).map(Number).sort((a, b) => a - b).map(n => n + '. ' + entries[n]);
@@ -61,7 +61,9 @@ async function docxToBlocks(buffer) {
     }
     else if (el.tagName === 'p') {
       // ย่อหน้านอกตาราง: เริ่ม block ใหม่ทุกครั้งที่เจอ "เลขข้อ." แล้วต่อย่อหน้าถัดไปเข้า block เดิมจนกว่าจะเจอเลขข้อใหม่
-      const l = lineOf(el); if (!l) return;
+      // หัวข้อที่ถูกต่อท้ายบรรทัดเดียวกับตัวเลือก (Shift+Enter) ต้องแยกออกเป็นบรรทัดหัวข้อของตัวเอง
+      const whole = lineOf(el); if (!whole) return;
+      for (const l of splitGluedHeading(whole)) {
       const isKeyLine = /^\s*\d{1,3}\s*[.)]\s*[A-Ha-hก-ฌ]\s*$/.test(l);
       if (isKeyLine) { blocks.push([l]); flowOpen = false; }
       else if (NUM_RE.test(l)) { blocks.push([l]); flowOpen = true; }
@@ -69,6 +71,7 @@ async function docxToBlocks(buffer) {
       else if (startsNote(l, flowOpen, blocks[blocks.length - 1])) { blocks.push([l]); flowOpen = false; }   // หัวข้อ/คำสั่ง/เนื้อเรื่อง ต้องไม่ไหลไปต่อท้ายตัวเลือกข้อก่อนหน้า
       else if (flowOpen) blocks[blocks.length - 1].push(l);
       else blocks.push([l]);
+      }
     }
   });
   return { blocks, images };
