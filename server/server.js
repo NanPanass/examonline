@@ -14,7 +14,10 @@ const express = require('express');
 const cors = require('cors');
 const multer = require('multer');
 const mammoth = require('mammoth');
-const { extractDocxExam } = require('./docx-images');
+// ตัวดึงรูปจากไฟล์ Word (ไม่บังคับ): ถ้าโหลดไม่ได้ (เช่น ยังไม่ได้ npm install cheerio) เซิร์ฟเวอร์ต้องไม่ล่ม แค่ข้ามฟีเจอร์นี้
+let extractDocxExam = null;
+try { ({ extractDocxExam } = require('./docx-images')); }
+catch (e) { console.warn('[import] ข้ามการดึงรูปจาก .docx เพราะโหลด docx-images ไม่ได้:', e.message); }
 const XLSX = require('xlsx');
 const { v4: uuid } = require('uuid');
 const http = require('http');
@@ -559,12 +562,17 @@ app.post('/api/admin/import', requireAuth, requireAdmin, importUpload.single('fi
       if (ext === '.docx') {
         text = (await mammoth.extractRawText({ buffer: buf })).value;
         // ลองอ่านแบบโค้ดล้วนก่อน (ดึงรูปโจทย์/รูปตัวเลือกตามตำแหน่งในไฟล์) ถ้าพบข้อสอบที่มีรูปให้ใช้ผลนี้เลย
-        try {
-          const dl = await extractDocxExam(buf);
-          if (dl.length >= 2 && dl.some(x => x.q_image || x.chImg.some(Boolean))) {
-            return res.json({ source: 'ตัวแยกโค้ด (ดึงรูปจากไฟล์ Word อัตโนมัติ ไม่ใช้ AI)' + (dl.every(x => x.keyFound) ? ' + เฉลยท้ายไฟล์ครบ' : ' — บางข้อไม่พบเฉลย ตรวจทานก่อนบันทึก'), questions: dl.map(({ keyFound, ...r }) => r) });
-          }
-        } catch (e) { console.warn('docx image extract failed, fallback:', e.message); }
+        if (extractDocxExam) {
+          try {
+            const dl = await extractDocxExam(buf);
+            if (dl.length >= 2 && dl.some(x => x.q_image || x.chImg.some(Boolean))) {
+              return res.json({
+                source: 'ตัวแยกโค้ด (ดึงรูปจากไฟล์ Word อัตโนมัติ ไม่ใช้ AI)' + (dl.every(x => x.keyFound) ? ' + เฉลยท้ายไฟล์ครบ' : ' — บางข้อไม่พบเฉลย ตรวจทานก่อนบันทึก'),
+                questions: dl.map(({ keyFound, ...r }) => r),
+              });
+            }
+          } catch (e) { console.warn('docx image extract failed, fallback:', e.message); }
+        }
       }
       else if (ext === '.xlsx' || ext === '.xls' || ext === '.csv') {
         const wb = XLSX.read(buf, { type: 'buffer' });
