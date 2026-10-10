@@ -671,7 +671,16 @@ app.put('/api/admin/users/:id/role', requireAuth, requireAdmin, ah(async (req, r
 }));
 
 // ---------- Exam taking: answers never leave the server until grading ----------
-const sessions = new Map(); // sessionId -> { qs:[fullQuestion...], setId, setTitle, mode, startedAt }
+// เซสชันทำข้อสอบเก็บในฐานข้อมูล (ไม่ใช่ memory) เพื่อไม่ให้หายเมื่อ Vercel สลับ instance/เซิร์ฟเวอร์รีสตาร์ต
+// จึงทำข้อสอบนานๆ แล้วกดส่งได้ เก็บ id ข้อสอบ+ลำดับที่สุ่มไว้ ส่วนเฉลยอ่านจาก DB ตอนตรวจเท่านั้น
+async function loadSession(sid) {
+  const row = await db.prepare('SELECT * FROM exam_sessions WHERE id=?').get(sid);
+  if (!row) return null;
+  const ids = JSON.parse(row.qids);
+  const all = await db.prepare('SELECT * FROM questions WHERE set_id=?').all(row.set_id);
+  const byId = new Map(all.map(q => [q.id, q]));
+  return { qs: ids.map(id => byId.get(id)).filter(Boolean), setId: row.set_id, setTitle: row.set_title, mode: row.mode, startedAt: row.started_at, resultId: row.result_id };
+}
 const sanitizeQ = q => ({ id: q.id, type: q.type, q: q.q, q_image: q.q_image, section_note: q.section_note || null, choices: q.choices ? JSON.parse(q.choices).map(c => ({ text: c.text, image: c.image })) : null });
 
 app.post('/api/exam/start', ah(async (req, res) => {
@@ -683,7 +692,8 @@ app.post('/api/exam/start', ah(async (req, res) => {
   if (shuffle) qs = qs.slice().sort(() => Math.random() - 0.5);
   if (!qs.length) return res.status(400).json({ error: 'ชุดข้อสอบนี้ไม่มีข้อสอบในรูปแบบที่เลือก' });
   const sessionId = uuid();
-  sessions.set(sessionId, { qs, setId, setTitle: s.title, mode: mode === 'p' ? 'p' : 'm', startedAt: Date.now() });
+  await db.prepare('INSERT INTO exam_sessions (id,set_id,set_title,mode,qids,started_at) VALUES (?,?,?,?,?,?)')
+    .run(sessionId, setId, s.title, mode === 'p' ? 'p' : 'm', JSON.stringify(qs.map(q => q.id)), Date.now());
   res.json({ sessionId, set: { title: s.title, time: s.time }, questions: qs.map(sanitizeQ) });
 }));
 
@@ -699,18 +709,23 @@ function rightAnswerText(q) {
   return (c && c.text) ? c.text : `ตัวเลือก ${ANSWER_LETTERS[idx] || idx + 1} (รูปภาพ)`;
 }
 
-app.post('/api/exam/:sid/check', (req, res) => {
-  const sess = sessions.get(req.params.sid);
+app.post('/api/exam/:sid/check', ah(async (req, res) => {
+  const sess = await loadSession(req.params.sid);
   if (!sess) return res.status(410).json({ error: 'เซสชันหมดอายุ กรุณาเริ่มทำข้อสอบใหม่' });
   const q = sess.qs.find(x => x.id === req.body.questionId);
   if (!q) return res.status(404).json({ error: 'ไม่พบข้อสอบข้อนี้' });
   const ok = gradeOne(q, req.body.answer);
   res.json({ ok, rightAnswer: rightAnswerText(q), rightIndex: q.type === 'mc' ? JSON.parse(q.answer) : null, explanation: q.explanation || '' });
-});
+}));
 
 app.post('/api/exam/:sid/submit', ah(async (req, res) => {
-  const sess = sessions.get(req.params.sid);
+  const sess = await loadSession(req.params.sid);
   if (!sess) return res.status(410).json({ error: 'เซสชันหมดอายุ กรุณาเริ่มทำข้อสอบใหม่' });
+  // กดส่งซ้ำ (เช่น เน็ตสะดุดแล้วไม่แน่ใจว่าส่งสำเร็จ) -> คืนผลเดิม ไม่บันทึกซ้ำ
+  if (sess.resultId) {
+    const r = await db.prepare('SELECT * FROM results WHERE id=?').get(sess.resultId);
+    if (r) return res.json({ id: r.id, score: r.score, total: r.total, sec: r.sec, away: r.away, mode: r.mode, title: r.set_title, detail: JSON.parse(r.detail) });
+  }
   const { answers = {}, sec = 0, away = 0, guestName } = req.body || {};
   const detail = sess.qs.map(q => {
     const a = answers[q.id];
@@ -723,7 +738,7 @@ app.post('/api/exam/:sid/submit', ah(async (req, res) => {
     detail: JSON.stringify(detail), created_at: Date.now(),
   };
   await db.prepare('INSERT INTO results (id,user_id,guest_name,set_id,set_title,mode,score,total,sec,away,detail,created_at) VALUES (@id,@user_id,@guest_name,@set_id,@set_title,@mode,@score,@total,@sec,@away,@detail,@created_at)').run(result);
-  sessions.delete(req.params.sid);
+  await db.prepare('UPDATE exam_sessions SET result_id=? WHERE id=?').run(result.id, req.params.sid);
   res.json({ id: result.id, score, total: detail.length, sec: result.sec, away: result.away, mode: result.mode, title: sess.setTitle, detail });
 }));
 
@@ -753,8 +768,11 @@ const rooms = new Map(); // pin -> room state
 const socketRoom = new Map(); // socket.id -> pin
 const QUESTION_SECONDS = 20;
 const clampInt = (v, lo, hi, d) => { v = Math.round(+v); return Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : d; };
-// โหมดแข่งขัน: เวลาต่อข้อ = ค่าที่โฮสต์ตั้งไว้ + เวลาอ่านเพิ่ม 10 วินาที ถ้าข้อนั้นมีคำสั่ง/คำอธิบายช่วงตอน (section_note)
-const questionSeconds = (room, q) => room.seconds + (q && q.section_note ? 10 : 0);
+// โหมดแข่งขัน: เวลาต่อข้อ = ค่าที่โฮสต์ตั้งไว้ + เวลาอ่านเพิ่มถ้าข้อนั้นมีคำสั่ง/คำอธิบายช่วงตอน (section_note)
+// เวลาอ่านเพิ่มคิดตามความยาวคำสั่ง (ประมาณ 1 วินาทีต่อ 8 ตัวอักษร ขั้นต่ำ 10 สูงสุด 90 วินาที)
+// (โหมดสอบ/ทดสอบประกอบการสอนไม่จับเวลาเลย จึงไม่เกี่ยวกับฟังก์ชันนี้)
+const readingBonus = q => (q && q.section_note) ? Math.min(90, Math.max(10, Math.ceil(String(q.section_note).length / 8))) : 0;
+const questionSeconds = (room, q) => room.seconds + readingBonus(q);
 const isExam = room => !!room && room.mode === 'exam';
 
 io.use((socket, next) => {
@@ -802,7 +820,8 @@ async function finishRoom(pin, room) {
 }
 
 // ---------- โหมดสอบ/ทดสอบประกอบการสอน (exam): ไม่จับเวลา ผู้สอบทำเองตามจังหวะตัวเอง โฮสต์ดูความคืบหน้าสด ----------
-const newPlayer = nick => ({ nickname: nick, score: 0, answered: false, answers: {}, index: 0, finished: false, finishedAt: null, connected: true, result: null });
+// key = รหัสลับประจำตัวผู้สอบ (ส่งกลับให้เจ้าตัวตอน join) ใช้กลับเข้าห้องเดิมได้แม้เน็ตหลุด/รีโหลดหน้า โดยคนอื่นที่แค่รู้ชื่อเล่นสวมรอยไม่ได้
+const newPlayer = nick => ({ nickname: nick, key: uuid(), score: 0, answered: false, answers: {}, index: 0, away: 0, finished: false, finishedAt: null, connected: true, result: null });
 function correctCount(room, p) {
   let n = 0;
   for (const q of room.set.qs) if (p.answers[q.id] !== undefined && gradeOne(q, p.answers[q.id])) n++;
@@ -812,11 +831,18 @@ function monitorPayload(room) {
   const total = room.set.qs.length;
   const players = [...room.players.values()].map(p => ({
     nickname: p.nickname, answered: Object.keys(p.answers).length, total, index: p.index,
-    finished: p.finished, connected: p.connected, correct: correctCount(room, p),
+    finished: p.finished, connected: p.connected, away: p.away || 0, correct: correctCount(room, p),
   }));
-  return { total, status: room.status, startedAt: room.startedAt || null, players, finishedCount: players.filter(p => p.finished).length };
+  return { total, status: room.status, startedAt: room.startedAt || null, elapsed: room.startedAt ? Date.now() - room.startedAt : 0, players, finishedCount: players.filter(p => p.finished).length };
 }
-const emitMonitor = room => { if (isExam(room) && room.hostSocket) io.to(room.hostSocket).emit('room:monitor', monitorPayload(room)); };
+// ส่งข้อมูล monitor ให้โฮสต์แบบหน่วง (รวมการเปลี่ยนแปลงถี่ๆ เป็นรอบละ ~400ms) กันห้องใหญ่ๆ ที่ทุกคนตอบพร้อมกันทำให้เซิร์ฟเวอร์คำนวณซ้ำรัวๆ
+const emitMonitor = room => {
+  if (!isExam(room) || !room.hostSocket || room.monitorTimer) return;
+  room.monitorTimer = setTimeout(() => {
+    room.monitorTimer = null;
+    if (room.hostSocket) io.to(room.hostSocket).emit('room:monitor', monitorPayload(room));
+  }, 400);
+};
 function submitPlayer(room, p) {
   if (p.finished) return p.result;
   const detail = room.set.qs.map(q => {
@@ -835,7 +861,7 @@ async function saveExamResults(room) {
     const sec = Math.max(0, Math.round(((p.finishedAt || Date.now()) - (room.startedAt || Date.now())) / 1000));
     try {
       await db.prepare('INSERT INTO results (id,user_id,guest_name,set_id,set_title,mode,score,total,sec,away,detail,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)')
-        .run(uuid(), null, p.nickname + ' (ห้องสอบ)', room.setId, room.set.title, 'm', p.result.score, p.result.total, sec, 0, JSON.stringify(p.result.detail), Date.now());
+        .run(uuid(), null, p.nickname + ' (ห้องสอบ)', room.setId, room.set.title, 'm', p.result.score, p.result.total, sec, p.away || 0, JSON.stringify(p.result.detail), Date.now());
     } catch (err) { console.error('บันทึกผลห้องสอบไม่สำเร็จ:', p.nickname, err); }
   }
 }
@@ -844,7 +870,7 @@ async function finishExam(room) {
   room.players.forEach(p => submitPlayer(room, p)); // ใครยังไม่กดส่ง ส่งให้อัตโนมัติ
   room.status = 'ended';
   const board = [...room.players.values()].map(p => ({
-    nickname: p.nickname, score: p.result.score, total: p.result.total,
+    nickname: p.nickname, score: p.result.score, total: p.result.total, away: p.away || 0,
     sec: Math.max(0, Math.round(((p.finishedAt || Date.now()) - (room.startedAt || Date.now())) / 1000)),
   })).sort((a, b) => b.score - a.score || a.sec - b.sec);
   // ผู้สอบเห็นเฉพาะผลของตัวเอง (และเฉพาะเมื่อโฮสต์เปิดให้เห็นคะแนน) ส่วนโฮสต์เห็นตารางทั้งห้อง
@@ -853,9 +879,10 @@ async function finishExam(room) {
   await saveExamResults(room);
 }
 const joinPayload = (room, p) => {
-  const base = { ok: true, title: room.set.title, mode: room.mode, showScore: room.showScore };
+  const base = { ok: true, title: room.set.title, mode: room.mode, showScore: room.showScore, nickname: p.nickname, key: p.key };
   if (!isExam(room) || room.status === 'lobby') return base;
-  return { ...base, running: true, startedAt: room.startedAt, total: room.set.qs.length, questions: room.set.qs.map(sanitizeQ),
+  if (room.status === 'ended') return { ...base, ended: true, mine: room.showScore && p.result ? { score: p.result.score, total: p.result.total } : null };
+  return { ...base, running: true, startedAt: room.startedAt, elapsed: Date.now() - room.startedAt, total: room.set.qs.length, questions: room.set.qs.map(sanitizeQ),
     answers: p.answers, index: p.index, finished: p.finished, mine: p.finished && room.showScore ? { score: p.result.score, total: p.result.total } : null };
 };
 
@@ -890,18 +917,20 @@ io.on('connection', socket => {
     room.hostSocket = socket.id;
     socketRoom.set(socket.id, pin);
     socket.join('pin:' + pin);
-    cb && cb({ ok: true, pin, title: room.set.title, total: room.set.qs.length, mode: room.mode, status: room.status, monitor: isExam(room) ? monitorPayload(room) : null, players: playerList(room) });
+    cb && cb({ ok: true, pin, title: room.set.title, total: room.set.qs.length, mode: room.mode, status: room.status, showScore: room.showScore, seconds: room.seconds, monitor: isExam(room) ? monitorPayload(room) : null, players: playerList(room) });
   });
 
-  socket.on('player:join', ({ pin, nickname }, cb) => {
+  socket.on('player:join', ({ pin, nickname, key }, cb) => {
     const room = rooms.get(pin);
     if (!room) return cb && cb({ error: 'ไม่พบห้องนี้ ตรวจสอบ PIN อีกครั้ง' });
     const nick = String(nickname || '').trim().slice(0, 24) || 'ผู้เล่น';
     const exam = isExam(room);
-    // โหมดสอบ: ผู้สอบที่หลุดไปแล้วกลับเข้ามาด้วยชื่อเดิม จะได้คำตอบที่ทำไว้คืน
-    if (exam && room.status === 'running') {
+    // โหมดสอบ: ผู้สอบที่หลุด/รีโหลดหน้า กลับเข้ามาได้คำตอบที่ทำไว้คืน
+    //  - ถ้ามี key ที่ได้ตอน join ครั้งแรก ตรงกับผู้สอบคนเดิม -> รับช่วงต่อทันที (แม้เซิร์ฟเวอร์ยังไม่รู้ว่า socket เก่าหลุดไปแล้ว)
+    //  - ถ้าไม่มี key ใช้ชื่อเดิมได้เฉพาะเมื่อผู้สอบคนนั้นหลุดการเชื่อมต่ออยู่ (กันคนอื่นแย่งชื่อของคนที่ยังทำข้อสอบอยู่)
+    if (exam && room.status !== 'lobby') {
       for (const [sid, p] of room.players) {
-        if (p.nickname === nick && !p.connected) {
+        if (p.nickname === nick && ((key && key === p.key) || (!key && !p.connected))) {
           room.players.delete(sid); p.connected = true; room.players.set(socket.id, p);
           socketRoom.set(socket.id, pin); socket.join('pin:' + pin);
           emitMonitor(room);
@@ -983,6 +1012,15 @@ io.on('connection', socket => {
     const p = room && room.players.get(socket.id);
     if (!isExam(room) || !p || p.finished || !Number.isInteger(index)) return;
     p.index = Math.min(Math.max(index, 0), room.set.qs.length - 1);
+    emitMonitor(room);
+  });
+
+  // ผู้สอบสลับแท็บ/ออกจากหน้าจอระหว่างสอบ -> นับให้โฮสต์เห็นใน monitor (ไม่ได้บล็อกอะไร เป็นข้อมูลประกอบการดูแลห้องสอบ)
+  socket.on('player:away', ({ pin }) => {
+    const room = rooms.get(pin);
+    const p = room && room.players.get(socket.id);
+    if (!isExam(room) || !p || p.finished || room.status !== 'running') return;
+    p.away = (p.away || 0) + 1;
     emitMonitor(room);
   });
 

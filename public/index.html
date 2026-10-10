@@ -116,6 +116,16 @@ th{color:var(--mut);font-weight:600}
 .lbtn.c0{background:#C0392B}.lbtn.c1{background:#2471A3}.lbtn.c2{background:#B7950B}.lbtn.c3{background:#229954}
 .timerbar{height:8px;background:var(--soft);border-radius:9px;overflow:hidden;margin:12px 0}
 .timerbar div{height:100%;background:var(--gold);transition:width .25s linear}
+.tag.ok{background:var(--okb);color:var(--ok)}.tag.bad{background:var(--badb);color:var(--bad)}.tag.gray{background:var(--soft);color:var(--mut)}.tag.pri{background:var(--soft);color:var(--pri)}
+.mbar{display:inline-block;vertical-align:middle;width:110px;height:8px;background:var(--soft);border-radius:9px;overflow:hidden;margin-right:8px}
+.mbar i{display:block;height:100%;background:var(--pri)}.mbar.done i{background:var(--ok)}
+.mtable td,.mtable th{padding:9px 10px}
+.mtable tr.off td{opacity:.55}
+.modecard{align-items:flex-start}
+.modecard b{width:auto;height:auto;background:none;display:inline;border-radius:0;color:var(--ink)}
+.modecard small{display:block;color:var(--mut);font-weight:400}
+.offline{background:var(--badb);color:var(--bad);padding:8px 14px;border-radius:12px;margin-bottom:12px;font-size:.92rem}
+.exampage{max-width:1080px;margin:auto;padding:16px 20px 60px}
 </style>
 </head>
 <body>
@@ -178,16 +188,51 @@ const myA=x=>x.type==='mc'?(x.given==null?'—':(x.choices[x.given]?(L[x.given]+
 // ---------- Boot ----------
 async function boot(){
   if(token){try{const r=await api('/api/auth/me');me=r.user}catch(e){token=null;localStorage.removeItem('examhub.token')}}
-  await loadSets();render();
+  await loadSets();render();restoreLive();
 }
 async function loadSets(){try{sets=await api('/api/sets')}catch(e){sets=[]}}
 
 // ---------- Views ----------
 const head=()=>`<header><div class="hd"><div class="brand" data-a="go" data-v="home"><i>E</i>ExamHub</div><nav>${[['home','ข้อสอบ'],['live','ห้องสอบสด'],['hist','ผลสอบ'],...(adm()?[['admin','⚙ ระบบหลังบ้าน']]:[])].map(([k,l])=>`<button class="nv ${view===k||(k==='admin'&&view==='edit')?'on':''}" data-a="go" data-v="${k}">${l}</button>`).join('')}</nav><div class="usr">${me?`<span class="av">${esc(me.name[0])}</span><span class="sm mut">${esc(me.name)}</span><button class="btn sm ghost" data-a="out">ออกจากระบบ</button>`:`<button class="btn sm pri" data-a="authm">เข้าสู่ระบบ</button>`}</div></div></header>`;
 
+
+// ---------- Live helpers ----------
+const SS={get(){try{return JSON.parse(sessionStorage.getItem('examhub.live')||'null')}catch(e){return null}},set(v){try{v?sessionStorage.setItem('examhub.live',JSON.stringify(v)):sessionStorage.removeItem('examhub.live')}catch(e){}}};
+// เก็บข้อมูลห้องสอบ (เฉพาะโหมดสอบที่ยังไม่จบ) ไว้ใน sessionStorage เพื่อรีโหลดหน้าแล้วกลับเข้าห้องเดิมได้
+function saveSession(){if(LIVE&&LIVE.mode==='exam'&&LIVE.status!=='ended')SS.set({role:LIVE.role,pin:LIVE.pin,nickname:LIVE.nickname,key:LIVE.key});else SS.set(null)}
+function showOffline(on){let b=$('#offl');if(!on){b&&b.remove();return}if(b)return;b=document.createElement('div');b.id='offl';b.className='offline';b.style.cssText='position:fixed;top:0;left:0;right:0;z-index:40;border-radius:0;text-align:center;margin:0';b.textContent='⚠ การเชื่อมต่อขาดหาย กำลังเชื่อมต่อใหม่… คำตอบที่ทำไว้จะไม่หาย';document.body.appendChild(b)}
+function liveBar(){if(!LIVE||LIVE.status!=='question'){clearInterval(liveTick);return}document.querySelectorAll('.timerbar div').forEach(d=>d.style.width=timeLeftPct()+'%')}
+let saTimer=null,pendingSa=null;
+function saveAns(qid,val){if(!socket||!LIVE)return;socket.emit('player:examAnswer',{pin:LIVE.pin,questionId:qid,answer:val},r=>{if(r&&r.error)toast(r.error)})}
+function flushSa(){clearTimeout(saTimer);saTimer=null;if(pendingSa){const p=pendingSa;pendingSa=null;saveAns(p.qid,p.val)}}
+// รับผลตอบกลับจาก player:join (ทั้งเข้าครั้งแรก และกลับเข้าห้องเดิม) มาตั้งค่า LIVE
+function applyJoin(res,pin){
+ const prev=LIVE&&LIVE.role==='player'&&LIVE.pin===pin?LIVE:null,local=prev?prev.answers||{}:{};
+ LIVE=Object.assign(prev||{players:[],myAnswered:false,flag:{},index:null},{role:'player',pin,title:res.title,nickname:res.nickname,key:res.key,mode:res.mode,showScore:res.showScore,joined:true,status:'lobby'});
+ if(res.ended){LIVE.status='ended';LIVE.finished=true;LIVE.mine=res.mine||null}
+ else if(res.running){LIVE.status='running';LIVE.startedAt=Date.now()-(res.elapsed||0);LIVE.questions=res.questions;LIVE.finished=!!res.finished;LIVE.mine=res.mine||null;
+   LIVE.answers=Object.assign({},res.answers,local);
+   if(LIVE.index==null||LIVE.index>=res.questions.length)LIVE.index=res.index||0;
+   if(!res.finished)for(const [qid,v] of Object.entries(local))if(hasAns(v)&&res.answers[qid]!==v)saveAns(qid,v)}
+ saveSession()}
+// ต่อเน็ตกลับมาแล้ว: ขอกลับเข้าห้องเดิม
+function resync(){const sk=socket;
+ if(LIVE.role==='host')sk.emit('host:rejoin',{pin:LIVE.pin},r=>{if(r.error){toast(r.error);return A.liveLeave()}showOffline(false);LIVE.monitor=r.monitor||LIVE.monitor;if(r.status==='running'||r.status==='lobby')LIVE.status=r.status;render(true)});
+ else sk.emit('player:join',{pin:LIVE.pin,nickname:LIVE.nickname,key:LIVE.key},r=>{if(r.error){toast('กลับเข้าห้องไม่ได้: '+r.error);return A.liveLeave()}showOffline(false);applyJoin(r,LIVE.pin);render(true)})}
+// หลังรีโหลดหน้า: กลับเข้าห้องสอบเดิม (ถ้ามี)
+async function restoreLive(){const s=SS.get();if(!s)return;
+ try{const sk=A.connectSocket();
+  await new Promise((ok,no)=>{if(sk.connected)return ok();const t=setTimeout(()=>no(new Error('timeout')),6000);sk.once('connect',()=>{clearTimeout(t);ok()})});
+  const ack=(ev,d)=>new Promise(res=>sk.emit(ev,d,res));
+  if(s.role==='host'){if(!me)throw 0;const r=await ack('host:rejoin',{pin:s.pin});if(r.error||r.mode!=='exam'||r.status==='ended')throw 0;
+   LIVE={role:'host',pin:r.pin,title:r.title,total:r.total,mode:r.mode,status:r.status,seconds:r.seconds,showScore:r.showScore,players:r.players||[],monitor:r.monitor,startedAt:Date.now()-((r.monitor&&r.monitor.elapsed)||0),showCorrect:false,joined:true}}
+  else{const r=await ack('player:join',{pin:s.pin,nickname:s.nickname,key:s.key});if(r.error)throw 0;applyJoin(r,s.pin)}
+  view='live';render()}
+ catch(e){SS.set(null);if(socket){socket.disconnect();socket=null}LIVE=null}}
+
 const V={};
 V.home=()=>{const cats=['ทั้งหมด',...new Set(sets.map(s=>s.cat))],l=sets.filter(s=>cat==='ทั้งหมด'||s.cat===cat);
-return `<h2>${me?'สวัสดี '+esc(me.name)+' 👋':'สวัสดี 👋'}</h2><p class="mut">เลือกชุดข้อสอบที่ต้องการทำ — ทำได้เลยแม้ไม่ได้เข้าสู่ระบบ</p><div class="chips">${cats.map(c=>`<button class="chip ${c===cat?'on':''}" data-a="cat" data-v="${esc(c)}">${esc(c)}</button>`).join('')}</div><div class="grid">${l.map(s=>`<div class="card set"><span class="tag">${esc(s.cat)}</span><h3>${esc(s.title)}</h3><p class="mut sm">${esc(s.desc||'')}</p><div class="meta">📄 ${s.qCount} ข้อ (ปรนัย ${s.mcCount} · อัตนัย ${s.saCount}) · ⏱ ${s.time?s.time+' นาที':'ไม่จำกัดเวลา'}</div><div class="setbtns"><button class="btn pri" data-a="setup" data-v="${s.id}" ${s.qCount?'':'disabled'}>เริ่มทำข้อสอบ</button>${me&&s.mcCount?`<button class="btn live" data-a="hostRoom" data-v="${s.id}">🔴 ชวนเพื่อนเล่นสด</button>`:''}</div></div>`).join('')||'<p class="mut">ยังไม่มีข้อสอบ</p>'}</div>`};
+return `<h2>${me?'สวัสดี '+esc(me.name)+' 👋':'สวัสดี 👋'}</h2><p class="mut">เลือกชุดข้อสอบที่ต้องการทำ — ทำได้เลยแม้ไม่ได้เข้าสู่ระบบ</p><div class="chips">${cats.map(c=>`<button class="chip ${c===cat?'on':''}" data-a="cat" data-v="${esc(c)}">${esc(c)}</button>`).join('')}</div><div class="grid">${l.map(s=>`<div class="card set"><span class="tag">${esc(s.cat)}</span><h3>${esc(s.title)}</h3><p class="mut sm">${esc(s.desc||'')}</p><div class="meta">📄 ${s.qCount} ข้อ (ปรนัย ${s.mcCount} · อัตนัย ${s.saCount}) · ⏱ ${s.time?s.time+' นาที':'ไม่จำกัดเวลา'}</div><div class="setbtns"><button class="btn pri" data-a="setup" data-v="${s.id}" ${s.qCount?'':'disabled'}>เริ่มทำข้อสอบ</button>${me&&s.qCount?`<button class="btn live" data-a="hostSetup" data-v="${s.id}">🔴 เปิดห้องสอบสด</button>`:''}</div></div>`).join('')||'<p class="mut">ยังไม่มีข้อสอบ</p>'}</div>`};
 
 V.setup=null; // handled via modal, see A.setup
 
@@ -219,25 +264,54 @@ return `<div class="row"><h2>แก้ไขชุดข้อสอบ</h2><div
 <div class="row" style="margin-top:20px"><h3>ข้อสอบ (${s.questions.length} ข้อ)</h3><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" data-a="imp">📥 นำเข้าจากไฟล์</button><button class="btn" data-a="akOpen">📋 วางเฉลยแยก</button><button class="btn pri" data-a="qed" data-v="">+ เพิ่มข้อสอบ</button></div></div><div class="card"><table>${s.questions.map((q,i)=>(q.section_note?`<tr><td colspan="3" style="background:var(--goldb);color:var(--gold);font-weight:600;white-space:pre-line">📑 ${esc(q.section_note)}</td></tr>`:'')+`<tr><td>${i+1}</td><td class="wrap">${(q.q_image||(q.choices||[]).some(c=>c.image))?'🖼 ':''}${esc(q.q||'(โจทย์เป็นรูปภาพ)')}<div class="mut sm">${q.type==='mc'?'ปรนัย':'อัตนัย'} · เฉลย: ${esc(q.type==='mc'?(q.choices[q.answer]?.text||(q.choices[q.answer]?.image?'(รูปภาพ)':'')):q.answer.join(' / '))}</div></td><td style="white-space:nowrap"><button class="btn sm" data-a="qed" data-v="${q.id}">แก้ไข</button> <button class="btn sm del" data-a="qdel" data-v="${q.id}">ลบ</button></td></tr>`).join('')||'<tr><td class="mut">ยังไม่มีข้อสอบในชุดนี้</td></tr>'}</table></div>`};
 
 // ---------- Live room view ----------
-function timeLeftPct(){if(!LIVE||!LIVE.question)return 0;const el=Date.now()-LIVE.question.startedAt;return Math.max(0,100-el/(LIVE.question.seconds*1000)*100)}
-V.live=()=>{if(!LIVE)return `<h2>ห้องสอบสด</h2><p class="mut">เข้าร่วมห้องด้วย PIN จากเพื่อน หรือเปิดห้องใหม่จากชุดข้อสอบของคุณในหน้าแรก</p><div class="card" style="max-width:380px"><label class="f">PIN ห้อง (6 หลัก)</label><input class="inp" id="jpin" inputmode="numeric" maxlength="6" placeholder="123456"><label class="f">ชื่อเล่นของคุณ</label><input class="inp" id="jnick" placeholder="เช่น น้องเอ" maxlength="24"><button class="btn pri" data-a="joinRoom" style="width:100%">เข้าร่วมห้อง</button></div>`;
+function timeLeftPct(){if(!LIVE||!LIVE.question)return 0;const el=Date.now()-(LIVE.question.localStart||LIVE.question.startedAt);return Math.max(0,100-el/(LIVE.question.seconds*1000)*100)}
+const hasAns=v=>v!==undefined&&v!==null&&String(v).trim()!=='';
+const modeTag=m=>m==='exam'?'<span class="tag pri">📝 โหมดสอบ/ทดสอบ · ไม่จับเวลา</span>':'<span class="tag">🏆 โหมดแข่งขัน · จับเวลาต่อข้อ</span>';
+const eTime=ms=>{const s=Math.max(0,Math.round(ms/1000)),h=Math.floor(s/3600);return (h?h+':':'')+fmt(s%3600)};
+// ---------- โหมดสอบ: หน้าของผู้สอบ (ไม่จับเวลา กดข้อถัดไปเอง) ----------
+function liveExamView(){const Lv=LIVE,qs=Lv.questions,n=qs.length,i=Lv.index,q=qs[i],a=Lv.answers[q.id],done=qs.filter(x=>hasAns(Lv.answers[x.id])).length,last=i===n-1;
+ let b;
+ if(q.type==='mc')b=q.choices.map((c,k)=>`<label class="opt"><input type="radio" name="lo" ${a===k?'checked':''} data-a="lPick" data-v="${k}">${c.image?`<img class="thumb" src="${esc(c.image)}">`:''}<b>${L[k]}</b><span>${esc(c.text||'')}</span></label>`).join('');
+ else b=`<input class="inp" id="lsa" placeholder="พิมพ์คำตอบของคุณ" autocomplete="off" value="${esc(a||'')}" oninput="A.lSa(this.value)" onchange="flushSa()">`;
+ return `<div class="exampage">
+<div class="xbar"><h3>${esc(Lv.title)}</h3><span class="pill" id="ltm">00:00</span><button class="btn pri" data-a="lSubmit">ส่งข้อสอบ</button></div><div class="prog"><div style="width:${done/n*100}%"></div></div>
+<div class="exl"><div class="card">${q.section_note?`<div class="fb" style="background:var(--goldb);color:var(--gold);font-weight:600;white-space:pre-line;margin-bottom:12px">📑 ${esc(q.section_note)}</div>`:''}<div class="qn">ข้อที่ ${i+1} / ${n} · ${q.type==='mc'?'ปรนัย':'อัตนัย (คำตอบตายตัว)'}</div>${q.q_image?`<img class="qimg" src="${esc(q.q_image)}">`:''}<div class="qt">${esc(q.q)}</div>${b}
+<div class="foot"><button class="btn" data-a="lGo" data-v="${i-1}" ${i?'':'disabled'}>← ก่อนหน้า</button><button class="btn ghost" data-a="lFlag">${Lv.flag[q.id]?'🚩 ยกเลิกปักธง':'🏳 ปักธงทบทวน'}</button><span class="sp"></span>${last?'<button class="btn pri" data-a="lSubmit">ส่งข้อสอบ</button>':`<button class="btn pri" data-a="lGo" data-v="${i+1}">ถัดไป →</button>`}</div></div>
+<aside class="card"><div class="sec">แผนผังข้อสอบ</div><div class="pal">${qs.map((x,k)=>`<button class="pb ${k===i?'cur':hasAns(Lv.answers[x.id])?'ans':''} ${Lv.flag[x.id]?'fl':''}" data-a="lGo" data-v="${k}">${k+1}</button>`).join('')}</div><div style="display:flex;margin-top:14px;padding-top:14px;border-top:1px solid var(--line)"><div class="pstat"><b style="color:var(--pri)">${done}/${n}</b><span>ตอบแล้ว</span></div><div class="pstat" style="border-left:1px solid var(--line)"><b style="color:var(--gold)">${Object.values(Lv.flag).filter(Boolean).length}</b><span>ปักธง</span></div></div><div class="lgd" style="margin-top:12px;text-align:center">ไม่จำกัดเวลา · ตอบแล้วระบบบันทึกให้อัตโนมัติ · แก้ไขได้จนกว่าจะกดส่ง</div></aside></div></div>`}
+// ---------- โหมดสอบ: หน้า monitor ของโฮสต์ ----------
+function liveMonitorView(){const Lv=LIVE,m=Lv.monitor||{players:[],total:0,finishedCount:0},ps=m.players,off=ps.filter(p=>!p.connected&&!p.finished).length;
+ return `<div class="row"><div><h2 style="margin:0">${esc(Lv.title)}</h2>${modeTag('exam')} <span class="tag gray">PIN ${Lv.pin}</span></div><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><span class="pill" id="ltm">00:00</span><button class="btn del" data-a="liveExamEnd">🛑 จบการสอบ</button></div></div>
+<div class="stats"><div class="card stat"><b>${ps.length}</b><span>ผู้เข้าสอบ</span></div><div class="card stat"><b>${m.finishedCount}</b><span>ส่งแล้ว</span></div><div class="card stat"><b>${ps.length-m.finishedCount}</b><span>กำลังทำ</span></div><div class="card stat"><b style="${off?'color:var(--bad)':''}">${off}</b><span>หลุดการเชื่อมต่อ</span></div></div>
+<div class="row"><div class="mut sm">ผู้สอบเข้าเพิ่มได้ระหว่างสอบด้วย PIN เดิม · ผู้สอบที่ยังไม่กดส่งจะถูกส่งให้อัตโนมัติเมื่อคุณกด "จบการสอบ"</div><label class="sm mut"><input type="checkbox" ${Lv.showCorrect?'checked':''} onchange="LIVE.showCorrect=this.checked;render(true)"> แสดงจำนวนข้อที่ถูกแบบสด</label></div>
+<div class="card"><table class="mtable"><tr><th>ชื่อ</th><th>ความคืบหน้า</th><th>กำลังอยู่ข้อ</th>${Lv.showCorrect?'<th>ถูก</th>':''}<th>ออกจากหน้าจอ</th><th>สถานะ</th></tr>${[...ps].sort((x,y)=>x.nickname.localeCompare(y.nickname,'th')).map(p=>`<tr class="${!p.connected&&!p.finished?'off':''}"><td><b>${esc(p.nickname)}</b></td><td><span class="mbar ${p.finished?'done':''}"><i style="width:${p.total?p.answered/p.total*100:0}%"></i></span>${p.answered}/${p.total}</td><td>${p.finished?'—':p.index+1}</td>${Lv.showCorrect?`<td>${p.correct}</td>`:''}<td>${p.away?`<span style="color:var(--warn)">⚠ ${p.away} ครั้ง</span>`:'0'}</td><td>${p.finished?'<span class="tag ok">ส่งแล้ว</span>':!p.connected?'<span class="tag bad">หลุดการเชื่อมต่อ</span>':'<span class="tag pri">กำลังทำ</span>'}</td></tr>`).join('')||'<tr><td class="mut">ยังไม่มีผู้เข้าสอบ</td></tr>'}</table></div>`}
+V.live=()=>{if(!LIVE)return `<h2>ห้องสอบสด</h2><p class="mut">เข้าร่วมห้องด้วย PIN จากโฮสต์ หรือเปิดห้องใหม่จากชุดข้อสอบของคุณในหน้าแรก (เลือกได้ว่าเป็นห้องแข่งขัน หรือห้องสอบ/ทดสอบประกอบการสอน)</p><div class="card" style="max-width:380px"><label class="f">PIN ห้อง (6 หลัก)</label><input class="inp" id="jpin" inputmode="numeric" maxlength="6" placeholder="123456"><label class="f">ชื่อเล่นของคุณ</label><input class="inp" id="jnick" placeholder="เช่น น้องเอ" maxlength="24"><button class="btn pri" data-a="joinRoom" style="width:100%">เข้าร่วมห้อง</button></div>`;
 const L2=LIVE;
 if(L2.role==='host'){
- if(L2.status==='lobby')return `<div class="card lgc" style="max-width:520px;margin:auto"><h2>${esc(L2.title)}</h2><p class="mut">บอก PIN นี้ให้เพื่อนพิมพ์เพื่อเข้าร่วม</p><div class="pin">${L2.pin}</div><div class="plist">${(L2.players||[]).map(p=>`<span class="ptag">${esc(p.nickname)}</span>`).join('')||'<span class="mut sm">ยังไม่มีใครเข้าร่วม…</span>'}</div><button class="btn pri" style="width:100%" data-a="liveStart" ${(L2.players||[]).length?'':'disabled'}>เริ่มเล่น (${(L2.players||[]).length} คน)</button></div>`;
- if(L2.status==='question'){const q=L2.question,answered=(L2.players||[]).length;return `<div class="card"><div class="row"><h3>ข้อ ${q.qIndex+1} / ${q.total}</h3><button class="btn" data-a="liveNext">เฉลยตอนนี้</button></div><div class="timerbar"><div style="width:${timeLeftPct()}%"></div></div>${q.section_note?`<div class="fb" style="background:var(--goldb);color:var(--gold);font-weight:600;white-space:pre-line">📑 ${esc(q.section_note)}</div>`:''}${q.q_image?`<img class="qimg" src="${esc(q.q_image)}">`:''}<div class="qt">${esc(q.q)}</div><p class="mut">ผู้เล่นกำลังตอบ… (โฮสต์ไม่เห็นคำตอบจนกว่าจะเฉลย)</p></div>`;}
+ if(L2.status==='lobby')return `<div class="card lgc" style="max-width:520px;margin:auto"><h2>${esc(L2.title)}</h2>${modeTag(L2.mode)}<p class="mut">บอก PIN นี้ให้ผู้เข้าร่วมพิมพ์ที่เมนู "ห้องสอบสด"</p><div class="pin">${L2.pin}</div><div class="plist">${(L2.players||[]).map(p=>`<span class="ptag">${esc(p.nickname)}</span>`).join('')||'<span class="mut sm">ยังไม่มีใครเข้าร่วม…</span>'}</div><div class="foot" style="justify-content:center"><button class="btn" data-a="liveLeave">ยกเลิกห้อง</button><button class="btn pri" data-a="liveStart" ${L2.mode==='exam'||(L2.players||[]).length?'':'disabled'}>${L2.mode==='exam'?`เริ่มสอบ (${(L2.players||[]).length} คนในห้อง)`:`เริ่มเล่น (${(L2.players||[]).length} คน)`}</button></div>${L2.mode==='exam'?'<p class="mut sm">โหมดสอบ: ไม่จับเวลา ผู้สอบกดข้อถัดไปเอง และเข้าห้องเพิ่มได้แม้เริ่มสอบแล้ว</p>':`<p class="mut sm">โหมดแข่งขัน: ข้อละ ${L2.seconds||20} วินาที (ข้อที่มีคำสั่ง/คำอธิบายช่วงตอนจะได้เวลาอ่านเพิ่มอัตโนมัติ)</p>`}</div>`;
+ if(L2.mode==='exam'&&L2.status==='running')return liveMonitorView();
+ if(L2.mode==='exam'&&L2.status==='ended')return `<div class="card"><h2>🏁 จบการสอบ</h2><p class="mut">${esc(L2.title)} · บันทึกผลของทุกคนลงระบบแล้ว (ดูย้อนหลังได้ที่เมนู "ผลสอบ" ของผู้ดูแล)</p><table class="mtable"><tr><th>อันดับ</th><th>ชื่อ</th><th>คะแนน</th><th>เวลาที่ใช้</th><th>ออกจากหน้าจอ</th></tr>${(L2.leaderboard||[]).map((p,i)=>`<tr><td>${i+1}</td><td><b>${esc(p.nickname)}</b></td><td>${p.score} / ${p.total} (${p.total?Math.round(p.score/p.total*100):0}%)</td><td>${eTime(p.sec*1000)}</td><td>${p.away?`<span style="color:var(--warn)">⚠ ${p.away} ครั้ง</span>`:'0'}</td></tr>`).join('')||'<tr><td class="mut">ไม่มีผู้เข้าสอบ</td></tr>'}</table><div class="foot"><button class="btn pri" data-a="liveLeave">กลับหน้าแรก</button></div></div>`;
+ if(L2.status==='question'){const q=L2.question,answered=(L2.players||[]).length;return `<div class="card"><div class="row"><h3>ข้อ ${q.qIndex+1} / ${q.total} <span class="tag">⏱ ${q.seconds} วินาที</span></h3><button class="btn" data-a="liveNext">เฉลยตอนนี้</button></div><div class="timerbar"><div style="width:${timeLeftPct()}%"></div></div>${q.section_note?`<div class="fb" style="background:var(--goldb);color:var(--gold);font-weight:600;white-space:pre-line">📑 ${esc(q.section_note)}</div>`:''}${q.q_image?`<img class="qimg" src="${esc(q.q_image)}">`:''}<div class="qt">${esc(q.q)}</div><p class="mut">ผู้เล่นกำลังตอบ… (โฮสต์ไม่เห็นคำตอบจนกว่าจะเฉลย)</p></div>`;}
  if(L2.status==='reveal'){const rv=L2.lastReveal;return `<div class="card"><h3>เฉลย: ${esc(rv.rightAnswer)}</h3>${rv.explanation?`<p class="mut">${esc(rv.explanation)}</p>`:''}<div class="sec">กระดานคะแนน</div>${rv.leaderboard.map((p,i)=>`<div class="lbrow"><span>${i+1}. ${esc(p.nickname)}</span><b>${p.score}</b></div>`).join('')}<div class="foot"><span class="sp"></span><button class="btn pri" data-a="liveNext">ข้อถัดไป / ดูผลสรุป →</button></div></div>`;}
- if(L2.status==='ended')return `<div class="card"><h2>🏁 จบเกม!</h2><div class="sec">อันดับสุดท้าย</div>${L2.leaderboard.map((p,i)=>`<div class="lbrow"><span>${i+1}. ${esc(p.nickname)}</span><b>${p.score}</b></div>`).join('')}<div class="foot"><button class="btn pri" data-a="go" data-v="home">กลับหน้าแรก</button></div></div>`;
+ if(L2.status==='ended')return `<div class="card"><h2>🏁 จบเกม!</h2><div class="sec">อันดับสุดท้าย</div>${L2.leaderboard.map((p,i)=>`<div class="lbrow"><span>${i+1}. ${esc(p.nickname)}</span><b>${p.score}</b></div>`).join('')}<div class="foot"><button class="btn pri" data-a="liveLeave">กลับหน้าแรก</button></div></div>`;
 }else{
- if(L2.status==='lobby')return `<div class="card lgc" style="max-width:420px;margin:auto"><h2>${esc(L2.title)}</h2><p class="mut">เข้าร่วมในชื่อ <b>${esc(L2.nickname)}</b> แล้ว — รอโฮสต์เริ่มเกม…</p></div>`;
+ if(L2.status==='lobby')return `<div class="card lgc" style="max-width:420px;margin:auto"><h2>${esc(L2.title)}</h2>${modeTag(L2.mode)}<p class="mut">เข้าร่วมในชื่อ <b>${esc(L2.nickname)}</b> แล้ว — รอโฮสต์${L2.mode==='exam'?'เริ่มการสอบ':'เริ่มเกม'}…</p>${L2.mode==='exam'?'<p class="mut sm">โหมดสอบ: ไม่จับเวลา คุณกดข้อถัดไปเองและแก้คำตอบได้จนกว่าจะกดส่ง</p>':''}<div class="foot" style="justify-content:center"><button class="btn" data-a="liveLeave">ออกจากห้อง</button></div></div>`;
+ if(L2.mode==='exam'&&L2.status==='running'){
+   if(!L2.finished)return liveExamView();
+   return `<div class="card lgc" style="max-width:440px;margin:auto"><h2>ส่งข้อสอบเรียบร้อยแล้ว ✅</h2>${L2.mine?`<div class="pin" style="font-size:2.4rem">${L2.mine.score} / ${L2.mine.total}</div>`:'<p class="mut">ผู้สอนจะแจ้งผลคะแนนภายหลัง</p>'}<p class="mut">รอผู้สอนปิดห้องสอบ… ไม่ต้องทำอะไรเพิ่ม</p></div>`;}
+ if(L2.mode==='exam'&&L2.status==='ended')return `<div class="card lgc" style="max-width:440px;margin:auto"><h2>🏁 การสอบสิ้นสุดแล้ว</h2>${L2.mine?`<p class="mut">คะแนนของคุณ</p><div class="pin" style="font-size:2.4rem">${L2.mine.score} / ${L2.mine.total}</div>`:'<p class="mut">ส่งข้อสอบเรียบร้อย ผู้สอนจะแจ้งผลคะแนนภายหลัง</p>'}<div class="foot" style="justify-content:center"><button class="btn pri" data-a="liveLeave">กลับหน้าแรก</button></div></div>`;
  if(L2.status==='question'){const q=L2.question;
    if(L2.myAnswered)return `<div class="card lgc" style="max-width:420px;margin:auto"><h2>ส่งคำตอบแล้ว ✅</h2><p class="mut">รอผู้เล่นคนอื่น…</p></div>`;
    const colors=['c0','c1','c2','c3'];
    return `<div class="card"><div class="timerbar"><div style="width:${timeLeftPct()}%"></div></div>${q.section_note?`<div class="fb" style="background:var(--goldb);color:var(--gold);font-weight:600;white-space:pre-line">📑 ${esc(q.section_note)}</div>`:''}${q.q_image?`<img class="qimg" src="${esc(q.q_image)}">`:''}<div class="qt">${esc(q.q)}</div><div class="livebtns">${(q.choices||[]).map((c,i)=>`<button class="lbtn ${colors[i%4]}" data-a="liveAnswer" data-v="${i}">${c.image?`<img src="${esc(c.image)}">`:''}<span>${L[i]}. ${esc(c.text||'')}</span></button>`).join('')}</div></div>`;}
  if(L2.status==='reveal'){const rv=L2.lastReveal;return `<div class="card lgc" style="max-width:420px;margin:auto"><h2>${L2.myLastCorrect?'ถูกต้อง! 🎉':'ยังไม่ถูก'}</h2>${L2.myLastCorrect?`<p>+${L2.myLastPoints} คะแนน</p>`:''}<p class="mut">เฉลย: ${esc(rv.rightAnswer)}</p><div class="sec">อันดับปัจจุบัน</div>${rv.leaderboard.slice(0,5).map((p,i)=>`<div class="lbrow"><span>${i+1}. ${esc(p.nickname)}</span><b>${p.score}</b></div>`).join('')}</div>`;}
- if(L2.status==='ended')return `<div class="card"><h2>🏁 จบเกม!</h2><div class="sec">อันดับสุดท้าย</div>${L2.leaderboard.map((p,i)=>`<div class="lbrow ${p.nickname===L2.nickname?'':''}"><span>${i+1}. ${esc(p.nickname)}</span><b>${p.score}</b></div>`).join('')}<div class="foot"><button class="btn pri" data-a="go" data-v="home">กลับหน้าแรก</button></div></div>`;
+ if(L2.status==='ended')return `<div class="card"><h2>🏁 จบเกม!</h2><div class="sec">อันดับสุดท้าย</div>${L2.leaderboard.map((p,i)=>`<div class="lbrow ${p.nickname===L2.nickname?'':''}"><span>${i+1}. ${esc(p.nickname)}</span><b>${p.score}</b></div>`).join('')}<div class="foot"><button class="btn pri" data-a="liveLeave">กลับหน้าแรก</button></div></div>`;
 }};
 
-function render(){const a=$('#app');a.innerHTML=(view==='exam'||view==='live'&&LIVE&&LIVE.status==='question'?'':head())+`<main>${V[view]()}</main>`;if(view==='exam')tick();window.scrollTo(0,0)}
+function render(keep){const a=$('#app');const full=view==='exam'||(view==='live'&&LIVE&&(LIVE.status==='question'||(LIVE.mode==='exam'&&LIVE.status==='running'&&LIVE.role==='player'&&!LIVE.finished)));
+a.innerHTML=(full?'':head())+`<main>${V[view]()}</main>`;if(view==='exam')tick();if(!keep)window.scrollTo(0,0);startClock()}
+// นาฬิกานับขึ้น (โหมดสอบ) อัปเดตเฉพาะตัวเลข ไม่รีเรนเดอร์ทั้งหน้า
+let clockTimer=null;
+function startClock(){clearInterval(clockTimer);if(!$('#ltm')||!LIVE||!LIVE.startedAt)return;const upd=()=>{const x=$('#ltm');if(!x||!LIVE){clearInterval(clockTimer);return}x.textContent=eTime(Date.now()-LIVE.startedAt)};upd();clockTimer=setInterval(upd,1000)}
 function tick(){if(!X)return;const e=$('#tm');if(!e)return;if(X.end){const l=Math.max(0,Math.round((X.end-Date.now())/1e3));e.textContent=fmt(l);e.classList.toggle('warn',l<60);if(!l)A.sub(true)}else e.textContent=fmt(Math.round((Date.now()-X.t0)/1e3))}
 
 // ---------- Actions ----------
@@ -250,7 +324,7 @@ async authSubmit(mode){const email=$('#aem').value.trim(),pw=$('#apw').value,nam
  try{const r=await api(mode==='register'?'/api/auth/register':'/api/auth/login',{body:mode==='register'?{email,password:pw,name}:{email,password:pw}});
    token=r.token;localStorage.setItem('examhub.token',token);me=r.user;closeM();await loadSets();if(adm())await A.loadAdmin();view='home';render();toast('ยินดีต้อนรับ '+r.user.name)}
  catch(e){err.style.display='';err.className='fb bad';err.textContent=e.message}},
-out(){token=null;me=null;localStorage.removeItem('examhub.token');if(socket){socket.disconnect();socket=null}LIVE=null;view='home';render()},
+out(){token=null;me=null;localStorage.removeItem('examhub.token');SS.set(null);showOffline(false);if(socket){socket.disconnect();socket=null}LIVE=null;view='home';render()},
 histAll(all){api('/api/results'+(adm()&&all?'?all=1':'')).then(r=>{resultsList=r;render()}).catch(()=>{})},
 async loadAdmin(){if(!adm())return;try{adminUsers=await api('/api/admin/users')}catch(e){}render()},
 role(v){const [id,role]=v.split('|');api('/api/admin/users/'+id+'/role',{method:'PUT',body:{role:role==='admin'?'user':'admin'}}).then(()=>A.loadAdmin())},
@@ -341,20 +415,55 @@ async finish(){clearInterval(tm);closeM();try{const r=await api('/api/exam/'+X.s
 
 // ---- Live rooms ----
 connectSocket(){if(socket)return socket;socket=io({auth:{token:token||undefined},transports:['websocket']});
- socket.on('room:players',list=>{if(LIVE){LIVE.players=list;render()}});
- socket.on('room:question',q=>{if(LIVE){LIVE.status='question';LIVE.question=q;LIVE.myAnswered=false;LIVE.lastReveal=null;render();clearInterval(liveTick);liveTick=setInterval(()=>{if(LIVE&&LIVE.status==='question')render()},1000)}});
+ socket.on('room:players',list=>{if(LIVE){LIVE.players=list;if(LIVE.status==='lobby')render(true)}});
+ socket.on('room:question',q=>{if(LIVE){q.localStart=Date.now();LIVE.status='question';LIVE.question=q;LIVE.myAnswered=false;LIVE.lastReveal=null;render();clearInterval(liveTick);liveTick=setInterval(liveBar,400)}});
  socket.on('room:reveal',d=>{if(LIVE){clearInterval(liveTick);LIVE.status='reveal';LIVE.lastReveal=d;render()}});
- socket.on('room:ended',d=>{if(LIVE){clearInterval(liveTick);LIVE.status='ended';LIVE.leaderboard=d.leaderboard;render()}});
- socket.on('room:hostLeft',()=>{if(LIVE){toast('ผู้เปิดห้องออกจากห้องแล้ว');LIVE=null;clearInterval(liveTick);view='home';render()}});
+ socket.on('room:examStart',d=>{if(!LIVE)return;LIVE.status='running';LIVE.startedAt=Date.now();LIVE.total=d.total;LIVE.showScore=d.showScore;
+   if(LIVE.role==='player'){LIVE.questions=d.questions;LIVE.answers={};LIVE.flag={};LIVE.index=0;LIVE.finished=false;LIVE.mine=null}
+   else LIVE.monitor=LIVE.monitor||{players:(LIVE.players||[]).map(p=>({nickname:p.nickname,answered:0,total:d.total,index:0,finished:false,connected:true,away:0,correct:0})),total:d.total,finishedCount:0};
+   render()});
+ socket.on('room:monitor',m=>{if(LIVE&&LIVE.role==='host'){LIVE.monitor=m;if(LIVE.status==='running')render(true)}});
+ socket.on('room:ended',d=>{if(!LIVE)return;clearInterval(liveTick);LIVE.status='ended';
+   if(d.mode==='exam'){LIVE.finished=true;LIVE.mine=d.mine||null;if(d.leaderboard)LIVE.leaderboard=d.leaderboard}else LIVE.leaderboard=d.leaderboard;
+   showOffline(false);saveSession();render()});
+ socket.on('room:hostLeft',()=>{if(LIVE){toast('ผู้เปิดห้องออกจากห้องแล้ว');A.liveLeave()}});
+ socket.on('disconnect',()=>{if(LIVE&&LIVE.mode==='exam'&&LIVE.status!=='ended')showOffline(true)});
+ socket.on('connect',()=>{if(LIVE&&LIVE.mode==='exam'&&LIVE.joined&&LIVE.status!=='ended')resync()});
  return socket},
-hostRoom(setId){if(!me)return toast('เข้าสู่ระบบก่อนเพื่อเปิดห้องสอบสด');const sk=A.connectSocket();
- sk.emit('host:create',{setId},res=>{if(res.error)return toast(res.error);LIVE={role:'host',pin:res.pin,title:res.title,total:res.total,players:[],status:'lobby'};view='live';render()})},
+// --- ตั้งค่าห้อง: เลือกว่าเป็น "แข่งขัน" (จับเวลา) หรือ "สอบ/ทดสอบ" (ไม่จับเวลา โฮสต์ monitor) ---
+hostSetup(setId){if(!me)return toast('เข้าสู่ระบบก่อนเพื่อเปิดห้องสอบสด');const s=sets.find(x=>x.id===setId);if(!s)return;
+ const gOK=s.mcCount>0,defExam=!gOK||s.saCount>0;
+ modal(`<h3>เปิดห้องสอบสด</h3><p class="mut sm">${esc(s.title)} · ${s.qCount} ข้อ (ปรนัย ${s.mcCount} · อัตนัย ${s.saCount})</p>
+<div class="sec">เลือกประเภทห้อง</div>
+<label class="opt modecard" style="${gOK?'':'opacity:.45'}"><input type="radio" name="rmode" value="game" ${defExam?'':'checked'} ${gOK?'':'disabled'} onchange="A.modeChg()"><span><b style="display:inline">🏆 แข่งขัน / เล่นเกม</b><small>จับเวลาต่อข้อ ทุกคนตอบพร้อมกัน มีคะแนนโบนัสตามความเร็วและกระดานผู้นำสด · ใช้เฉพาะข้อปรนัย (${s.mcCount} ข้อ)${gOK?'':' — ชุดนี้ไม่มีข้อปรนัย'}</small></span></label>
+<label class="opt modecard"><input type="radio" name="rmode" value="exam" ${defExam?'checked':''} onchange="A.modeChg()"><span><b style="display:inline">📝 สอบ / ทดสอบประกอบการสอน</b><small>ไม่จับเวลา ผู้สอบอ่านคำสั่งและกดข้อถัดไปเองตามจังหวะตัวเอง ย้อนกลับแก้ได้ · โฮสต์ติดตามความคืบหน้าของทุกคนสดๆ · ปรนัยและอัตนัยครบทั้ง ${s.qCount} ข้อ</small></span></label>
+<div id="optGame" style="${defExam?'display:none':''}"><label class="f">เวลาต่อข้อ (วินาที)</label><input class="inp" id="rsec" type="number" min="5" max="300" value="20"><p class="mut sm" style="margin-top:-6px">ข้อที่มีคำสั่ง/คำอธิบายช่วงตอนจะได้เวลาอ่านเพิ่มอัตโนมัติ (ตามความยาวของคำสั่ง)</p></div>
+<div id="optExam" style="${defExam?'':'display:none'}"><label class="opt"><input type="checkbox" id="rshow" checked><span>ให้ผู้สอบเห็นคะแนนของตัวเองหลังส่งข้อสอบ</span></label></div>
+<div class="foot"><span class="sp"></span><button class="btn" data-a="cm">ยกเลิก</button><button class="btn pri" data-a="hostGo" data-v="${setId}">เปิดห้อง</button></div>`)},
+modeChg(){const ex=$('input[name=rmode]:checked').value==='exam';$('#optGame').style.display=ex?'none':'';$('#optExam').style.display=ex?'':'none'},
+hostGo(setId){const mode=$('input[name=rmode]:checked').value,seconds=+($('#rsec')||{}).value||20,showScore=$('#rshow')?$('#rshow').checked:true;const sk=A.connectSocket();
+ sk.emit('host:create',{setId,mode,seconds,showScore},res=>{if(res.error)return toast(res.error);closeM();
+   LIVE={role:'host',pin:res.pin,title:res.title,total:res.total,mode:res.mode,seconds:res.seconds,showScore:res.showScore,players:[],status:'lobby',showCorrect:false,joined:true};saveSession();view='live';render()})},
 joinRoom(){const pin=$('#jpin')?.value.trim(),nick=$('#jnick')?.value.trim();if(!pin||!nick)return toast('กรอก PIN และชื่อเล่นให้ครบ');const sk=A.connectSocket();
- sk.emit('player:join',{pin,nickname:nick},res=>{if(res.error)return toast(res.error);LIVE={role:'player',pin,title:res.title,nickname:nick,status:'lobby',myAnswered:false};view='live';render()})},
+ sk.emit('player:join',{pin,nickname:nick},res=>{if(res.error)return toast(res.error);applyJoin(res,pin);view='live';render()})},
 liveStart(){socket.emit('host:start',{pin:LIVE.pin},res=>{res&&res.error&&toast(res.error)})},
 liveNext(){socket.emit('host:next',{pin:LIVE.pin},res=>{res&&res.error&&toast(res.error)})},
+liveExamEnd(){const m=LIVE.monitor||{players:[],finishedCount:0},left=m.players.length-m.finishedCount;
+ ask(`จบการสอบตอนนี้หรือไม่?<div class="mut sm" style="font-weight:400;margin-top:6px">${left>0?`ยังมีผู้สอบที่ไม่ได้กดส่ง ${left} คน — ระบบจะส่งข้อสอบให้อัตโนมัติด้วยคำตอบที่ทำไว้`:'ทุกคนส่งข้อสอบแล้ว'} แล้วบันทึกผลลงระบบ</div>`,()=>socket.emit('host:examEnd',{pin:LIVE.pin},res=>{res&&res.error&&toast(res.error)}),'จบการสอบ')},
+liveLeave(){clearInterval(liveTick);clearInterval(clockTimer);showOffline(false);SS.set(null);if(socket){socket.disconnect();socket=null}LIVE=null;view='home';render()},
 liveAnswer(v){if(!LIVE||LIVE.myAnswered)return;LIVE.myAnswered=true;render();socket.emit('player:answer',{pin:LIVE.pin,answer:+v},res=>{if(res&&res.error){toast(res.error);return}LIVE.myLastCorrect=res.correct;LIVE.myLastPoints=res.points})},
+// --- ผู้สอบ (โหมดสอบ) ---
+lPick(v){const q=LIVE.questions[LIVE.index];LIVE.answers[q.id]=+v;saveAns(q.id,+v);render(true)},
+lSa(v){const q=LIVE.questions[LIVE.index];if(hasAns(v))LIVE.answers[q.id]=v;else delete LIVE.answers[q.id];pendingSa={qid:q.id,val:hasAns(v)?v:null};clearTimeout(saTimer);saTimer=setTimeout(flushSa,500)},
+lGo(v){flushSa();v=+v;const n=LIVE.questions.length;if(!(v>=0&&v<n))return;LIVE.index=v;if(socket)socket.emit('player:examIndex',{pin:LIVE.pin,index:v});render()},
+lFlag(){const id=LIVE.questions[LIVE.index].id;LIVE.flag[id]=!LIVE.flag[id];render(true)},
+lSubmit(){flushSa();const qs=LIVE.questions,un=qs.filter(q=>!hasAns(LIVE.answers[q.id])).length,fl=Object.values(LIVE.flag).filter(Boolean).length;
+ ask(`ส่งข้อสอบหรือไม่?<div class="mut sm" style="font-weight:400;margin-top:6px">ยังไม่ได้ตอบ ${un} ข้อ · ปักธงไว้ ${fl} ข้อ · ส่งแล้วแก้ไขไม่ได้</div>`,A.lSubmitGo,'ส่งข้อสอบ')},
+lSubmitGo(){flushSa();socket.emit('player:examSubmit',{pin:LIVE.pin},res=>{if(res.error)return toast(res.error);LIVE.finished=true;LIVE.mine=res.mine||null;render()})},
 };
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)return;
+ if(X&&view==='exam')X.away++;
+ if(LIVE&&LIVE.role==='player'&&LIVE.mode==='exam'&&LIVE.status==='running'&&!LIVE.finished&&socket&&socket.connected)socket.emit('player:away',{pin:LIVE.pin})});
 document.addEventListener('click',e=>{const b=e.target.closest('[data-a]');if(b&&A[b.dataset.a])A[b.dataset.a](b.dataset.v)});
 window.addEventListener('beforeunload',e=>{if(SDIRTY){e.preventDefault();e.returnValue=''}});
 boot();

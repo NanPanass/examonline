@@ -92,6 +92,15 @@ CREATE TABLE IF NOT EXISTS results (
   detail TEXT NOT NULL,
   created_at INTEGER NOT NULL
 );
+CREATE TABLE IF NOT EXISTS exam_sessions (
+  id TEXT PRIMARY KEY,
+  set_id TEXT NOT NULL,
+  set_title TEXT NOT NULL,
+  mode TEXT NOT NULL,
+  qids TEXT NOT NULL,
+  started_at INTEGER NOT NULL,
+  result_id TEXT
+);
 CREATE TABLE IF NOT EXISTS rooms (
   id TEXT PRIMARY KEY,
   pin TEXT UNIQUE NOT NULL,
@@ -149,6 +158,8 @@ const ready = (async () => {
   await client.executeMultiple(SCHEMA);
   await migrate();
   await seedIfEmpty();
+  // เซสชันทำข้อสอบเก่าเกิน 3 วัน ลบทิ้งกันตารางโต
+  await client.execute({ sql: 'DELETE FROM exam_sessions WHERE started_at < ?', args: [Date.now() - 3 * 86400000] });
 })();
 
 module.exports = { prepare, ready, client };
