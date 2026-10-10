@@ -3,6 +3,8 @@
 const mammoth = require('mammoth');
 const cheerio = require('cheerio');
 const { noteKind, joinNote } = require('./section-notes');   // ตัวจับหัวข้อ/คำสั่ง/เนื้อเรื่อง ใช้ร่วมกับ server.js
+const { parseKeyGrid } = require('./answer-table');   // อ่านตารางเฉลย (ข้อ|เฉลย) จากแถว×เซลล์จริง
+const keyLines = entries => Object.keys(entries).map(Number).sort((a, b) => a - b).map(n => n + '. ' + entries[n]);
 
 const KEY_RE = /^\s*\(?([A-Ha-hก-ฌ])[.)]\s*/;        // A.  B)  ก.  ข)
 const NUM_RE = /^\s*(?:ข้อ\s*)?(\d{1,3})\s*[.)]\s*/;   // 1.  2)  ข้อ 3.
@@ -38,16 +40,12 @@ async function docxToBlocks(buffer) {
   $('body').children().each((_, el) => {
     if (el.tagName === 'table') {
       flowOpen = false;
-      $(el).find('tr').each((_, tr) => {
-        const cells = $(tr).find('td,th').map((_, td) => $(td).find('p').map((_, p) => lineOf(p)).get().filter(Boolean)).get();
-        // ตารางเฉลย: แถวที่เป็นคู่ [เลขข้อ, ตัวเลือก] เรียงซ้ำ เช่น 1 | C | 11 | B | 21 | D → แปลงเป็น "1. C" "11. B" "21. D"
-        const pairs = [];
-        for (let i = 0; i + 1 < cells.length; i += 2) {
-          if (/^\d{1,3}$/.test(cells[i]) && /^[A-Ha-hก-ฌ]$/.test(cells[i + 1])) pairs.push(cells[i] + '. ' + cells[i + 1]);
-        }
-        if (pairs.length && pairs.length * 2 === cells.length) blocks.push(pairs);
-        else $(tr).find('td,th').each((_, td) => blocks.push($(td).find('p').map((_, p) => lineOf(p)).get().filter(Boolean)));
-      });
+      // อ่านทั้งตารางเป็นแถว×เซลล์ ถ้าเป็น "ตารางเฉลย" (ข้อ|เฉลย เรียงซ้ำหลายคอลัมน์ / ตารางสองคอลัมน์ / แนวนอน) แปลงเป็นบรรทัด "N. X" ใน block เดียว
+      const rows = [];
+      $(el).find('tr').each((_, tr) => rows.push($(tr).find('td,th').map((_, td) => $(td).find('p').map((_, p) => lineOf(p)).get().filter(Boolean).join(' ')).get()));
+      const g = parseKeyGrid(rows);
+      if (g.ok) blocks.push(keyLines(g.entries));
+      else $(el).find('td,th').each((_, td) => blocks.push($(td).find('p').map((_, p) => lineOf(p)).get().filter(Boolean)));
     }
     else if (el.tagName === 'p') {
       // ย่อหน้านอกตาราง: เริ่ม block ใหม่ทุกครั้งที่เจอ "เลขข้อ." แล้วต่อย่อหน้าถัดไปเข้า block เดิมจนกว่าจะเจอเลขข้อใหม่
@@ -134,4 +132,18 @@ async function extractDocxExam(buffer) {
     ...(q.note ? { section_note: q.note } : {}),
   }));
 }
-module.exports = { extractDocxExam, docxToBlocks };
+// อ่านเฉพาะ "ตารางเฉลย" ในไฟล์ Word → { entries: {เลขข้อ: ตัวอักษร}, count } (ใช้กับไฟล์ที่ไม่มีรูป ซึ่ง server.js อ่านเป็นข้อความล้วน)
+// mammoth.extractRawText ทิ้งโครงสร้างตาราง (ได้ "ข้อ/เฉลย/1/B/11/B/21/C/2/C..." เซลล์ละบรรทัดเรียงตามแถว) จึงต้องอ่านจากตารางโดยตรง
+async function extractDocxKey(buffer) {
+  const { value: html } = await mammoth.convertToHtml({ buffer }, { convertImage: mammoth.images.imgElement(async () => ({ src: '' })) });
+  const $ = cheerio.load(html);
+  const entries = {};
+  $('table').each((_, t) => {
+    const rows = [];
+    $(t).find('tr').each((_, tr) => rows.push($(tr).find('td,th').map((_, td) => $(td).text()).get()));
+    const g = parseKeyGrid(rows);
+    if (g.ok) for (const [n, v] of Object.entries(g.entries)) if (!(n in entries)) entries[n] = v;
+  });
+  return { entries, count: Object.keys(entries).length };
+}
+module.exports = { extractDocxExam, docxToBlocks, extractDocxKey };

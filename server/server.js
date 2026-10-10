@@ -16,8 +16,8 @@ const multer = require('multer');
 const mammoth = require('mammoth');
 // ตัวดึงรูปจากไฟล์ Word (ไม่บังคับ): ถ้าโหลดไม่ได้ (เช่น ยังไม่ได้ npm install cheerio) เซิร์ฟเวอร์ต้องไม่ล่ม แค่ข้ามฟีเจอร์นี้
 const { noteKind, joinNote } = require('./section-notes');   // ตัวจับหัวข้อ/คำสั่ง/เนื้อเรื่อง (section_note) ใช้ร่วมกับ docx-images.js
-let extractDocxExam = null;
-try { ({ extractDocxExam } = require('./docx-images')); }
+let extractDocxExam = null, extractDocxKey = null;
+try { ({ extractDocxExam, extractDocxKey } = require('./docx-images')); }
 catch (e) { console.warn('[import] ข้ามการดึงรูปจาก .docx เพราะโหลด docx-images ไม่ได้:', e.message); }
 const XLSX = require('xlsx');
 const { v4: uuid } = require('uuid');
@@ -405,6 +405,31 @@ function applyKeyToList(list, text) {
   return { changed, checked };
 }
 
+// แทนที่ "ตารางเฉลย" ที่ mammoth ดึงเป็นข้อความเซลล์ละบรรทัด (ข้อ/เฉลย/1/B/11/B/21/C/2/C... เรียงตามแถว ไม่ใช่ตามเลขข้อ) ด้วยรายการ "1. B" ที่อ่านจากตารางจริง
+// ไม่งั้น parseAnswerKey จะจับเลขข้อกับตัวอักษรผิดคู่ แล้วไปทับเฉลยที่ถูกต้อง  entries = { เลขข้อ: ตัวอักษรเฉลย }
+function withCanonicalKey(text, entries) {
+  const nums = Object.keys(entries).map(Number).sort((a, b) => a - b);
+  if (nums.length < 2) return text;
+  const body = nums.map(n => n + '. ' + entries[n]).join('\n');
+  const lines = String(text).split('\n');
+  const ne = []; lines.forEach((l, i) => { if (l.trim()) ne.push({ t: l.trim(), i }); });   // เฉพาะบรรทัดที่มีข้อความ
+  // (1) หาช่วงท้ายไฟล์ที่เป็น "เซลล์ตาราง" ล้วนๆ (ข้อ / เฉลย / เลขข้อ / ตัวอักษรเฉลย) แล้วดูว่าก่อนหน้านั้นมีหัวข้อ "เฉลย" อยู่ใกล้ๆ ไหม (เผื่อมีบรรทัดรองเช่นชื่อชั้น)
+  const CELL = /^(?:ข้อ(?:ที่)?|no\.?|เฉลย|คำตอบ|answers?|ans\.?|\d{1,3}[.)]?|\(?[A-Ha-hก-ฌ]\)?[.)]?)$/i;
+  let k = ne.length; while (k > 0 && CELL.test(ne[k - 1].t)) k--;
+  let cut = -1, head = 'เฉลย (Answer Key)';
+  if (k < ne.length) {
+    for (let j = k - 1; j >= Math.max(0, k - 4); j--) if (isAnswerKeyHeader(ne[j].t)) { cut = ne[j].i; head = ne[j].t; break; }
+    if (cut < 0) cut = ne[k].i;
+  }
+  // (2) ตารางมีข้อความปนในเซลล์ (เช่น "B. cat") ทำให้ช่วงเซลล์ล้วนสั้นเกินไป: เอาหัวข้อ "เฉลย" ตัวแรกที่หลังจากนั้นเหลือบรรทัดไม่เกินจำนวนที่ตารางควรมี
+  if (cut < 0) {
+    const budget = nums.length * 3 + 12;
+    for (let j = 0; j < ne.length; j++) if (isAnswerKeyHeader(ne[j].t) && ne.length - j - 1 <= budget) { cut = ne[j].i; head = ne[j].t; break; }
+  }
+  if (cut < 0) cut = lines.length;
+  return lines.slice(0, cut).join('\n') + '\n' + head + '\n' + body;
+}
+
 function equalsFallback(text) {
   // เอกสารบางแบบไม่มีเลขข้อนำหน้าเลย (เช่น "5+3 = 8" ทีละบรรทัด) ลองโหมดสำรองนี้แทน
   return text.split('\n').map(l => l.trim()).filter(l => l.includes('=')).map(l => {
@@ -566,7 +591,7 @@ app.post('/api/admin/import', requireAuth, requireAdmin, importUpload.single('fi
   if (!req.file) return res.status(400).json({ error: 'ไม่พบไฟล์ที่อัปโหลด' });
   const ext = path.extname(req.file.originalname || '').toLowerCase();
   const buf = req.file.buffer;
-  let list, source, keySrcText = '';
+  let list, source, keySrcText = '', keyTableCount = 0;
   try {
     if (ext === '.pdf' || IMAGE_MEDIA[ext]) {
       list = await callClaudeExtract({ fileBuffer: buf, mediaType: ext === '.pdf' ? 'application/pdf' : IMAGE_MEDIA[ext] });
@@ -587,6 +612,13 @@ app.post('/api/admin/import', requireAuth, requireAdmin, importUpload.single('fi
             }
           } catch (e) { console.warn('docx image extract failed, fallback:', e.message); }
         }
+        // ไฟล์ไม่มีรูป → อ่านเป็นข้อความ แต่ตารางเฉลยต้องอ่านจากตารางจริง (ข้อ|เฉลย เรียงซ้ำหลายคอลัมน์ ฯลฯ) แล้วแทนที่ส่วนเฉลยในข้อความ
+        if (extractDocxKey) {
+          try {
+            const k = await extractDocxKey(buf);
+            if (k.count >= 2) { text = withCanonicalKey(text, k.entries); keyTableCount = k.count; }
+          } catch (e) { console.warn('docx key table extract failed, fallback:', e.message); }
+        }
       }
       else if (ext === '.xlsx' || ext === '.xls' || ext === '.csv') {
         const wb = XLSX.read(buf, { type: 'buffer' });
@@ -606,6 +638,7 @@ app.post('/api/admin/import', requireAuth, requireAdmin, importUpload.single('fi
   if (keySrcText && Array.isArray(list)) {
     const kr = applyKeyToList(list, keySrcText);
     if (kr.checked) source += ` + ตรวจกับเฉลยท้ายไฟล์ ${kr.checked} ข้อ${kr.changed ? ` (แก้ ${kr.changed} ข้อ)` : ''}`;
+    if (keyTableCount && kr.checked) source += ` (อ่านจากตารางเฉลย ${keyTableCount} ข้อ)`;
   }
   list = (list || []).filter(x => x && (x.q || x.q_image) && (
     x.t === 'mc' ? Array.isArray(x.ch) && x.ch.length >= 2 && Number.isInteger(x.a) && x.a >= 0 && x.a < x.ch.length
