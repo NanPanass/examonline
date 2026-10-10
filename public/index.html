@@ -59,7 +59,7 @@ label.f{font-size:.85rem;font-weight:600;color:var(--mut)}
 .opt:hover{border-color:var(--pri)}
 .opt:has(input:checked){border-color:var(--pri);background:var(--soft)}
 .opt b{width:28px;height:28px;border-radius:8px;background:var(--soft);color:var(--pri);display:grid;place-items:center;flex:none}
-.opt img.thumb{width:64px;height:64px;object-fit:cover;border-radius:8px;flex:none}
+.opt img.thumb{width:88px;height:88px;object-fit:cover;border-radius:8px;flex:none}
 .opt.ok{border-color:var(--ok)!important;background:var(--okb)!important}
 .opt.bad{border-color:var(--bad)!important;background:var(--badb)!important}
 .opt input{accent-color:var(--pri)}
@@ -101,6 +101,8 @@ th{color:var(--mut);font-weight:600}
 .crow>div{min-width:180px}
 .crow .inp{margin:0 0 6px}
 .thumb-sm{width:56px;height:56px;object-fit:cover;border-radius:8px;border:1px solid var(--line)}
+.imgslot{border:1.5px dashed var(--line);border-radius:10px;padding:8px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:4px}
+.imgslot:focus,.imgslot.dz{outline:2px solid var(--gold);border-color:var(--gold)}
 .pin{font:700 3rem/1 'Noto Serif Thai',Georgia,serif;letter-spacing:.08em;color:var(--pri);text-align:center;margin:10px 0}
 .plist{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0}
 .ptag{background:var(--soft);color:var(--pri);padding:6px 14px;border-radius:99px;font-weight:600;font-size:.9rem}
@@ -134,14 +136,34 @@ async function api(p,opt={}){
   if(!r.ok)throw new Error((j&&j.error)||'เกิดข้อผิดพลาด ('+r.status+')');
   return j;
 }
+// ย่อ/บีบอัดรูปก่อนอัปโหลดอัตโนมัติ: รูปจากมือถือมักใหญ่หลาย MB เกินขีดจำกัดต่อรูป และทำให้ข้อมูลข้อสอบ (ฝังเป็น base64) ใหญ่เกินไป
+async function compressImg(file,maxDim=1280,target=350*1024){
+  if(!file||!/^image\//.test(file.type))throw new Error('ไฟล์ที่เลือกไม่ใช่รูปภาพ');
+  if(file.size<=target&&/^image\/(png|jpe?g|webp|gif)$/.test(file.type))return file;
+  if(file.type==='image/gif'&&file.size<=1.5*1024*1024)return file;
+  let bmp;try{bmp=await createImageBitmap(file)}catch(e){throw new Error('อ่านไฟล์รูปไม่ได้ (รองรับ PNG, JPG, WEBP, GIF)')}
+  let best=null;
+  for(const dim of [maxDim,1024,800,600]){
+    const sc=Math.min(1,dim/Math.max(bmp.width,bmp.height)),c=document.createElement('canvas');
+    c.width=Math.max(1,Math.round(bmp.width*sc));c.height=Math.max(1,Math.round(bmp.height*sc));
+    const g=c.getContext('2d');g.fillStyle='#fff';g.fillRect(0,0,c.width,c.height);g.drawImage(bmp,0,0,c.width,c.height);
+    for(const qlt of [.85,.72,.6]){
+      const b=await new Promise(r=>c.toBlob(r,'image/jpeg',qlt));if(!b)continue;best=b;
+      if(b.size<=target)return new File([b],'image.jpg',{type:'image/jpeg'});
+    }
+  }
+  if(best&&best.size<=1.5*1024*1024)return new File([best],'image.jpg',{type:'image/jpeg'});
+  throw new Error('รูปใหญ่เกินไป ลองใช้รูปที่เล็กลง');
+}
 async function uploadImg(file){
+  file=await compressImg(file);
   const fd=new FormData();fd.append('image',file);
   return (await api('/api/upload',{body:fd})).url;
 }
 
 // ---------- App state ----------
 let me=null,sets=[],view='home',cat='ทั้งหมด',X=null,R=null,tm=null;
-let resultsList=[],adminUsers=[],edSet=null,EID=null,QID=null,edQ=null,CB=null,IMP=[],SDIRTY=false,AK=[];
+let resultsList=[],adminUsers=[],edSet=null,EID=null,QID=null,edQ=null,CB=null,IMP=[],IMPSRC='',SDIRTY=false,AK=[];
 function markDirty(){SDIRTY=true;document.querySelectorAll('.ssaveBtn').forEach(b=>{b.classList.add('pri');b.textContent='💾 บันทึกการเปลี่ยนแปลง'});const bar=$('#dirtyBar');if(bar)bar.style.display=''}
 let socket=null,LIVE=null,liveTick=null;
 
@@ -151,7 +173,7 @@ function toast(m){const t=document.createElement('div');t.className='toast';t.te
 function ask(msg,fn,label='ยืนยัน'){CB=fn;modal(`<h3>${msg}</h3><div class="foot"><span class="sp"></span><button class="btn" data-a="cm">ยกเลิก</button><button class="btn pri" data-a="cb">${label}</button></div>`)}
 const adm=()=>me&&me.role==='admin';
 const fmt=s=>String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0');
-const myA=x=>x.type==='mc'?(x.given==null?'—':(x.choices[x.given]?(L[x.given]+'. '+x.choices[x.given].text):'—')):((x.given&&String(x.given).trim())?x.given:'—');
+const myA=x=>x.type==='mc'?(x.given==null?'—':(x.choices[x.given]?(L[x.given]+'. '+(x.choices[x.given].text||'(รูปภาพ)')):'—')):((x.given&&String(x.given).trim())?x.given:'—');
 
 // ---------- Boot ----------
 async function boot(){
@@ -194,7 +216,7 @@ return `<div class="row"><div><h2>ระบบหลังบ้าน</h2><div 
 V.edit=()=>{const s=edSet,catOpts=[...new Set([...CATS,s.cat])];
 SDIRTY=false;
 return `<div class="row"><h2>แก้ไขชุดข้อสอบ</h2><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" data-a="go" data-v="admin">← กลับ</button><button class="btn ssaveBtn" data-a="ssave">💾 บันทึกแล้ว</button></div></div><div class="fb" id="dirtyBar" style="display:none;background:var(--goldb);color:var(--gold);margin-bottom:12px">มีการแก้ไขที่ยังไม่ได้บันทึก — กด "บันทึกการเปลี่ยนแปลง" เพื่อจัดเก็บ</div><div class="card"><div class="two"><div><label class="f">ชื่อชุดข้อสอบ</label><input class="inp" value="${esc(s.title)}" oninput="A.setField('title',this.value)"></div><div><label class="f">ประเภท</label><select class="inp" onchange="A.setField('cat',this.value)">${catOpts.map(c=>`<option value="${esc(c)}" ${s.cat===c?'selected':''}>${esc(c)}</option>`).join('')}</select></div><div><label class="f">เวลา (นาที)</label><input class="inp" type="number" min="0" value="${s.time}" oninput="A.setField('time',+this.value||0)"></div></div><label class="f">คำอธิบายสั้น ๆ</label><input class="inp" value="${esc(s.desc||'')}" oninput="A.setField('desc',this.value)"><label class="f"><input type="checkbox" ${s.is_public?'checked':''} onchange="A.setField('is_public',this.checked)"> เผยแพร่แบบสาธารณะ (ทุกคนเห็นในหน้าแรก)</label><div class="foot"><span class="sp"></span><button class="btn ssaveBtn" data-a="ssave">💾 บันทึกการเปลี่ยนแปลง</button></div></div>
-<div class="row" style="margin-top:20px"><h3>ข้อสอบ (${s.questions.length} ข้อ)</h3><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" data-a="imp">📥 นำเข้าจากไฟล์</button><button class="btn" data-a="akOpen">📋 วางเฉลยแยก</button><button class="btn pri" data-a="qed" data-v="">+ เพิ่มข้อสอบ</button></div></div><div class="card"><table>${s.questions.map((q,i)=>(q.section_note?`<tr><td colspan="3" style="background:var(--goldb);color:var(--gold);font-weight:600;white-space:pre-line">📑 ${esc(q.section_note)}</td></tr>`:'')+`<tr><td>${i+1}</td><td class="wrap">${q.q_image?'🖼 ':''}${esc(q.q)}<div class="mut sm">${q.type==='mc'?'ปรนัย':'อัตนัย'} · เฉลย: ${esc(q.type==='mc'?(q.choices[q.answer]?.text||''):q.answer.join(' / '))}</div></td><td style="white-space:nowrap"><button class="btn sm" data-a="qed" data-v="${q.id}">แก้ไข</button> <button class="btn sm del" data-a="qdel" data-v="${q.id}">ลบ</button></td></tr>`).join('')||'<tr><td class="mut">ยังไม่มีข้อสอบในชุดนี้</td></tr>'}</table></div>`};
+<div class="row" style="margin-top:20px"><h3>ข้อสอบ (${s.questions.length} ข้อ)</h3><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" data-a="imp">📥 นำเข้าจากไฟล์</button><button class="btn" data-a="akOpen">📋 วางเฉลยแยก</button><button class="btn pri" data-a="qed" data-v="">+ เพิ่มข้อสอบ</button></div></div><div class="card"><table>${s.questions.map((q,i)=>(q.section_note?`<tr><td colspan="3" style="background:var(--goldb);color:var(--gold);font-weight:600;white-space:pre-line">📑 ${esc(q.section_note)}</td></tr>`:'')+`<tr><td>${i+1}</td><td class="wrap">${(q.q_image||(q.choices||[]).some(c=>c.image))?'🖼 ':''}${esc(q.q||'(โจทย์เป็นรูปภาพ)')}<div class="mut sm">${q.type==='mc'?'ปรนัย':'อัตนัย'} · เฉลย: ${esc(q.type==='mc'?(q.choices[q.answer]?.text||(q.choices[q.answer]?.image?'(รูปภาพ)':'')):q.answer.join(' / '))}</div></td><td style="white-space:nowrap"><button class="btn sm" data-a="qed" data-v="${q.id}">แก้ไข</button> <button class="btn sm del" data-a="qdel" data-v="${q.id}">ลบ</button></td></tr>`).join('')||'<tr><td class="mut">ยังไม่มีข้อสอบในชุดนี้</td></tr>'}</table></div>`};
 
 // ---------- Live room view ----------
 function timeLeftPct(){if(!LIVE||!LIVE.question)return 0;const el=Date.now()-LIVE.question.startedAt;return Math.max(0,100-el/(LIVE.question.seconds*1000)*100)}
@@ -246,20 +268,25 @@ qed(id){QID=id||null;const src=id?edSet.questions.find(x=>String(x.id)===String(
  if(edQ.type==='sa')edQ.saAnswer=(edQ.answer||[]).join('\n');
  modal(A.qEditorHtml())},
 qEditorHtml(){const q=edQ;
- const mcBlock=()=>`<label class="f">ตัวเลือกคำตอบ (แต่ละข้อใส่ข้อความและ/หรือรูปภาพได้)</label>${(q.choices||[]).map((c,i)=>`<div class="crow"><b style="padding-top:8px">${L[i]}</b><div style="flex:1"><input class="inp" placeholder="ข้อความตัวเลือก (เว้นว่างได้ถ้าใช้รูป)" value="${esc(c.text||'')}" oninput="edQ.choices[${i}].text=this.value">${c.image?`<img class="thumb-sm" src="${esc(c.image)}"> <button class="btn sm del" type="button" onclick="edQ.choices[${i}].image=null;A.refreshQ()">ลบรูป</button>`:`<input type="file" accept="image/*" onchange="A.qImg(this.files[0],'c',${i})">`}</div><label style="display:flex;align-items:center;gap:4px;white-space:nowrap"><input type="radio" name="qans" ${q.answer===i?'checked':''} onchange="edQ.answer=${i}"> ถูกต้อง</label>${q.choices.length>2?`<button class="btn sm del" type="button" onclick="edQ.choices.splice(${i},1);if(edQ.answer>=edQ.choices.length)edQ.answer=0;A.refreshQ()">✕</button>`:''}</div>`).join('')}<button class="btn sm" type="button" onclick="edQ.choices.push({text:'',image:null});A.refreshQ()">+ เพิ่มตัวเลือก</button>`;
+ const mcBlock=()=>`<label class="f">ตัวเลือกคำตอบ (แต่ละข้อใส่ข้อความและ/หรือรูปภาพได้)</label>${(q.choices||[]).map((c,i)=>`<div class="crow"><b style="padding-top:8px">${L[i]}</b><div style="flex:1"><input class="inp" placeholder="ข้อความตัวเลือก (เว้นว่างได้ถ้าใช้รูป)" value="${esc(c.text||'')}" oninput="edQ.choices[${i}].text=this.value">${A.slot('c',i,c.image)}</div><label style="display:flex;align-items:center;gap:4px;white-space:nowrap"><input type="radio" name="qans" ${q.answer===i?'checked':''} onchange="edQ.answer=${i}"> ถูกต้อง</label>${q.choices.length>2?`<button class="btn sm del" type="button" onclick="edQ.choices.splice(${i},1);if(edQ.answer>=edQ.choices.length)edQ.answer=0;A.refreshQ()">✕</button>`:''}</div>`).join('')}<button class="btn sm" type="button" onclick="edQ.choices.push({text:'',image:null});A.refreshQ()">+ เพิ่มตัวเลือก</button>`;
  const saBlock=()=>`<label class="f">คำตอบที่ยอมรับ (1 บรรทัดต่อ 1 คำตอบ ไม่สนตัวพิมพ์เล็ก/ใหญ่)</label><textarea class="inp" rows="3" oninput="edQ.saAnswer=this.value">${esc(q.saAnswer||'')}</textarea>`;
  return `<h3>${QID?'แก้ไข':'เพิ่ม'}ข้อสอบ</h3>
  <label class="f">คำอธิบายช่วงตอน (ไม่บังคับ)</label><textarea class="inp" rows="2" placeholder="เช่น ตอนที่ 1: เลือกความหมายที่ถูกต้อง (ข้อ 1-10) — จะแสดงเป็นหัวข้อก่อนข้อนี้" oninput="edQ.section_note=this.value">${esc(q.section_note||'')}</textarea>
  <label class="f">รูปแบบคำตอบ</label><select class="inp" onchange="edQ.type=this.value;if(edQ.type==='mc'&&(!edQ.choices||!edQ.choices.length)){edQ.choices=[{text:'',image:null},{text:'',image:null}];edQ.answer=0}A.refreshQ()"><option value="mc" ${q.type==='mc'?'selected':''}>ปรนัย (เลือกตัวเลือก) — รองรับห้องสอบสด</option><option value="sa" ${q.type==='sa'?'selected':''}>อัตนัย (พิมพ์ตอบ คำตอบตายตัว)</option></select>
  <label class="f">โจทย์</label><textarea class="inp" rows="2" oninput="edQ.q=this.value">${esc(q.q)}</textarea>
- <label class="f">รูปประกอบโจทย์ (ไม่บังคับ)</label>${q.q_image?`<div><img class="thumb-sm" style="width:110px;height:110px" src="${esc(q.q_image)}"> <button class="btn sm del" type="button" onclick="edQ.q_image=null;A.refreshQ()">ลบรูป</button></div>`:`<input type="file" accept="image/*" onchange="A.qImg(this.files[0],'q')">`}
+ <label class="f">รูปประกอบโจทย์ (ไม่บังคับ)</label>${A.slot('q',null,q.q_image)}
  ${q.type==='mc'?mcBlock():saBlock()}
  <label class="f">คำอธิบายเฉลย</label><textarea class="inp" rows="2" oninput="edQ.explanation=this.value">${esc(q.explanation||'')}</textarea>
  <div class="foot"><span class="sp"></span><button class="btn" data-a="cm">ยกเลิก</button><button class="btn pri" data-a="qsave">บันทึก</button></div>`},
 refreshQ(){modal(A.qEditorHtml())},
-async qImg(file,kind,idx){if(!file)return;try{const url=await uploadImg(file);if(kind==='q')edQ.q_image=url;else edQ.choices[idx].image=url;A.refreshQ()}catch(e){toast(e.message)}},
+async qImg(file,kind,idx){if(!file)return;toast('กำลังอัปโหลดรูป…');try{const url=await uploadImg(file);if(kind==='q')edQ.q_image=url;else edQ.choices[idx].image=url;A.refreshQ()}catch(e){toast(e.message)}},
+// ช่องใส่รูป (ไม่บังคับ) ใช้ได้ทั้งโจทย์ (kind='q') และตัวเลือกแต่ละข้อ (kind='c'): เลือกไฟล์ / กด Ctrl+V วางรูป / ลากไฟล์มาวาง
+slot(kind,ix,img){const k=ix==null?'null':ix,big=kind==='q'?' style="width:110px;height:110px"':'';return `<div class="imgslot" tabindex="0" title="คลิกกรอบนี้แล้วกด Ctrl+V เพื่อวางรูป หรือลากไฟล์รูปมาวาง" onpaste="A.imgPaste(event,'${kind}',${k})" ondragover="event.preventDefault();this.classList.add('dz')" ondragleave="this.classList.remove('dz')" ondrop="A.imgDrop(event,'${kind}',${k})">${img?`<img class="thumb-sm"${big} src="${esc(img)}"><button class="btn sm del" type="button" onclick="A.imgDel('${kind}',${k})">ลบรูป</button>`:''}<label class="btn sm" style="cursor:pointer">${img?'เปลี่ยนรูป':'🖼 เลือกรูป'}<input type="file" accept="image/*" hidden onchange="A.qImg(this.files[0],'${kind}',${k})"></label><span class="mut sm">หรือวาง/ลากรูปมาที่กรอบนี้</span></div>`},
+imgDel(kind,ix){if(kind==='q')edQ.q_image=null;else edQ.choices[ix].image=null;A.refreshQ()},
+imgPaste(e,kind,ix){const it=[...(e.clipboardData?.items||[])].find(x=>x.type.startsWith('image/'));if(!it)return;e.preventDefault();A.qImg(it.getAsFile(),kind,ix)},
+imgDrop(e,kind,ix){e.preventDefault();e.currentTarget.classList.remove('dz');const f=[...(e.dataTransfer?.files||[])].find(x=>x.type.startsWith('image/'));if(f)A.qImg(f,kind,ix);else toast('ไม่พบไฟล์รูปภาพ')},
 async qsave(){const q=edQ,body={type:q.type,q:(q.q||'').trim(),q_image:q.q_image||null,explanation:(q.explanation||'').trim(),section_note:(q.section_note||'').trim()};
- if(!body.q)return toast('กรุณากรอกโจทย์');
+ if(!body.q&&!body.q_image)return toast('กรุณากรอกโจทย์ (ข้อความหรือรูปภาพ)');
  if(q.type==='mc'){body.choices=q.choices.map(c=>({text:(c.text||'').trim(),image:c.image||null}));if(body.choices.some(c=>!c.text&&!c.image))return toast('ทุกตัวเลือกต้องมีข้อความหรือรูปภาพ');body.answer=q.answer}
  else{const a=(q.saAnswer||'').split('\n').map(x=>x.trim()).filter(Boolean);if(!a.length)return toast('ใส่คำตอบที่ถูกอย่างน้อย 1 คำตอบ');body.answer=a}
  try{if(SDIRTY)await A.ssave();if(QID)await api('/api/admin/questions/'+QID,{method:'PUT',body});else await api('/api/admin/sets/'+EID+'/questions',{body});
@@ -270,11 +297,16 @@ imp(){IMP=[];modal(`<h3>นำเข้าข้อสอบจากไฟล�
 async impRun(file){if(!file)return;const set=h=>{const e=$('#ist');if(e)e.innerHTML=h};
  set('<div class="fb" style="background:var(--soft)">⏳ กำลังอ่านและแยกข้อสอบ… (อาจใช้เวลาถึง 1 นาทีสำหรับไฟล์รูปภาพ/PDF)</div>');
  try{const fd=new FormData();fd.append('file',file);const r=await api('/api/admin/import',{body:fd});
-   IMP=r.questions.map(x=>({...x,on:true}));
+   IMP=r.questions.map(x=>({...x,on:true}));IMPSRC=r.source;
    set(A.impListHtml(r.source))}
  catch(e){set(`<div class="fb bad">${esc(e.message)}</div>`)}},
-impListHtml(source){return `<div class="fb ok">พบ ${IMP.length} ข้อ (แยกโดย${esc(source)}) ตรวจสอบก่อนเพิ่มเข้าชุดข้อสอบ</div><div style="max-height:44vh;overflow:auto;margin-top:10px">${IMP.map((x,i)=>`<div style="margin-bottom:4px"><input class="inp" style="font-size:.82rem;padding:5px 10px;margin-bottom:2px;background:var(--goldb);color:var(--gold);border-color:transparent" placeholder="📑 คำอธิบายช่วงตอน (ไม่บังคับ) เช่น ตอนที่ 1: ... (ข้อ 1-10)" value="${esc(x.section_note||'')}" oninput="IMP[${i}].section_note=this.value"><label class="opt" style="align-items:flex-start;margin-bottom:0"><input type="checkbox" ${x.on?'checked':''} onchange="IMP[${i}].on=this.checked"><span><span class="tag">${x.t==='mc'?'ปรนัย':'อัตนัย'}</span> ${esc(x.q)}<div class="mut sm">${x.t==='mc'?x.ch.map((c,k)=>(k===x.a?'✅ ':'')+L[k]+'. '+esc(c)).join(' · '):'เฉลย: '+esc(x.a.join(' / '))}</div></span></label></div>`).join('')}</div><div class="foot"><span class="sp"></span><button class="btn" data-a="cm">ยกเลิก</button><button class="btn pri" data-a="impAdd">เพิ่มเข้าชุดข้อสอบ</button></div>`},
-async impAdd(){const sel=IMP.filter(x=>x.on).map(({on,...x})=>x);if(!sel.length)return toast('เลือกอย่างน้อย 1 ข้อ');
+impImgRow(x,i){const b=(k,lab,img)=>`<label class="btn sm" style="cursor:pointer;padding:2px 8px">${img?`<img src="${esc(img)}" style="width:22px;height:22px;object-fit:cover;border-radius:4px;vertical-align:middle">`:'🖼'} ${lab}<input type="file" accept="image/*" hidden onchange="A.impImg(this.files[0],${i},'${k}')"></label>${img?`<button class="btn sm del" type="button" style="padding:2px 6px" onclick="A.impImgDel(${i},'${k}')">✕</button>`:''}`;return `<div class="mut sm" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:2px 0 10px 28px">รูป (ไม่บังคับ): ${b('q','โจทย์',x.q_image)}${x.t==='mc'?x.ch.map((c,k)=>b('c'+k,L[k],(x.chImg||[])[k])).join(''):''}</div>`},
+async impImg(file,i,k){if(!file)return;toast('กำลังอัปโหลดรูป…');try{const url=await uploadImg(file);if(k==='q')IMP[i].q_image=url;else{const j=+k.slice(1);(IMP[i].chImg=IMP[i].chImg||[])[j]=url}A.impRedraw()}catch(e){toast(e.message)}},
+impImgDel(i,k){if(k==='q')IMP[i].q_image=null;else if(IMP[i].chImg)IMP[i].chImg[+k.slice(1)]=null;A.impRedraw()},
+impRedraw(){const sel='#ist div[style*="max-height"]',box=$(sel),sc=box?box.scrollTop:0;$('#ist').innerHTML=A.impListHtml(IMPSRC);const b2=$(sel);if(b2)b2.scrollTop=sc},
+impListHtml(source){return `<div class="fb ok">พบ ${IMP.length} ข้อ (แยกโดย${esc(source)}) ตรวจสอบก่อนเพิ่มเข้าชุดข้อสอบ</div><div style="max-height:44vh;overflow:auto;margin-top:10px">${IMP.map((x,i)=>`<div style="margin-bottom:4px"><input class="inp" style="font-size:.82rem;padding:5px 10px;margin-bottom:2px;background:var(--goldb);color:var(--gold);border-color:transparent" placeholder="📑 คำอธิบายช่วงตอน (ไม่บังคับ) เช่น ตอนที่ 1: ... (ข้อ 1-10)" value="${esc(x.section_note||'')}" oninput="IMP[${i}].section_note=this.value"><label class="opt" style="align-items:flex-start;margin-bottom:0"><input type="checkbox" ${x.on?'checked':''} onchange="IMP[${i}].on=this.checked"><span><span class="tag">${x.t==='mc'?'ปรนัย':'อัตนัย'}</span> ${esc(x.q)}<div class="mut sm">${x.t==='mc'?x.ch.map((c,k)=>(k===x.a?'✅ ':'')+L[k]+'. '+esc(c)).join(' · '):'เฉลย: '+esc(x.a.join(' / '))}</div></span></label>${A.impImgRow(x,i)}</div>`).join('')}</div><div class="foot"><span class="sp"></span><button class="btn" data-a="cm">ยกเลิก</button><button class="btn pri" data-a="impAdd">เพิ่มเข้าชุดข้อสอบ</button></div>`},
+async impAdd(){const sel=IMP.filter(x=>x.on).map(({on,chImg,...x})=>({...x,ch:x.t==='mc'?x.ch.map((c,k)=>({text:c,image:(chImg||[])[k]||null})):x.ch}));if(!sel.length)return toast('เลือกอย่างน้อย 1 ข้อ');
+ if(JSON.stringify(sel).length>4000000)return toast('ข้อมูลรูปในรอบนี้ใหญ่เกินไป กรุณานำเข้าทีละส่วน หรือเพิ่มรูปภายหลังในหน้าแก้ไขข้อ');
  try{if(SDIRTY)await A.ssave();const r=await api('/api/admin/sets/'+EID+'/questions/bulk',{body:{questions:sel}});
    edSet=await api('/api/admin/sets/'+EID);await loadSets();closeM();render();toast('เพิ่ม '+r.added+' ข้อแล้ว')}catch(e){toast(e.message)}},
 
@@ -284,7 +316,7 @@ async akPreview(){const text=$('#akt').value;if(!text.trim())return toast('ก�
  try{const r=await api('/api/admin/sets/'+EID+'/answers/preview',{body:{text}});
    AK=r.preview.filter(p=>p.ok).map(p=>({...p,on:true}));
    const skipped=r.preview.length-r.matched;
-   $('#akr').innerHTML=`<div class="fb ${AK.length?'ok':'bad'}">จับคู่ได้ ${r.matched}/${r.total} ข้อ${skipped?` (ข้าม ${skipped} ข้อ — ไม่ใช่ปรนัยหรือไม่พบเฉลยในข้อความที่วาง)`:''}</div>${AK.length?`<div style="max-height:40vh;overflow:auto;margin-top:10px">${AK.map((p,i)=>`<label class="opt" style="align-items:flex-start"><input type="checkbox" ${p.on?'checked':''} onchange="AK[${i}].on=this.checked"><span><b>ข้อ ${p.position}</b> ${esc(p.q)}<div class="mut sm">${p.choices.map((c,k)=>(k===p.proposedIndex?'✅ ':(k===p.currentIndex?'〰️ ':''))+L[k]+'. '+esc(c.text)).join(' · ')}${p.changed?' <b style="color:var(--gold)">(เปลี่ยนจากเดิม)</b>':''}${p.note?`<div style="color:var(--gold)">⚠ ${esc(p.note)}</div>`:''}</div></span></label>`).join('')}</div><div class="foot"><span class="sp"></span><button class="btn" data-a="cm">ยกเลิก</button><button class="btn pri" data-a="akApply">ยืนยันบันทึกเฉลย</button></div>`:''}`}
+   $('#akr').innerHTML=`<div class="fb ${AK.length?'ok':'bad'}">จับคู่ได้ ${r.matched}/${r.total} ข้อ${skipped?` (ข้าม ${skipped} ข้อ — ไม่ใช่ปรนัยหรือไม่พบเฉลยในข้อความที่วาง)`:''}</div>${AK.length?`<div style="max-height:40vh;overflow:auto;margin-top:10px">${AK.map((p,i)=>`<label class="opt" style="align-items:flex-start"><input type="checkbox" ${p.on?'checked':''} onchange="AK[${i}].on=this.checked"><span><b>ข้อ ${p.position}</b> ${esc(p.q)}<div class="mut sm">${p.choices.map((c,k)=>(k===p.proposedIndex?'✅ ':(k===p.currentIndex?'〰️ ':''))+L[k]+'. '+esc(c.text||'(รูปภาพ)')).join(' · ')}${p.changed?' <b style="color:var(--gold)">(เปลี่ยนจากเดิม)</b>':''}${p.note?`<div style="color:var(--gold)">⚠ ${esc(p.note)}</div>`:''}</div></span></label>`).join('')}</div><div class="foot"><span class="sp"></span><button class="btn" data-a="cm">ยกเลิก</button><button class="btn pri" data-a="akApply">ยืนยันบันทึกเฉลย</button></div>`:''}`}
  catch(e){$('#akr').innerHTML=`<div class="fb bad">${esc(e.message)}</div>`}},
 async akApply(){const sel=AK.filter(x=>x.on).map(x=>({id:x.id,index:x.proposedIndex}));if(!sel.length)return toast('เลือกอย่างน้อย 1 ข้อ');
  try{const r=await api('/api/admin/sets/'+EID+'/answers/apply',{body:{updates:sel}});

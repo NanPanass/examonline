@@ -29,7 +29,7 @@ const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: '*' } });
 
 app.use(cors());
-app.use(express.json({ limit: '2mb' }));
+app.use(express.json({ limit: '4mb' }));
 // รอให้ schema/seed ของ Turso พร้อมก่อนตอบทุก request แรก (กันปัญหา cold start บน Vercel)
 app.use((req, res, next) => { db.ready.then(() => next()).catch(next); });
 
@@ -126,10 +126,26 @@ app.delete('/api/admin/sets/:id', requireAuth, requireAdmin, ah(async (req, res)
   res.json({ ok: true });
 }));
 
+// รูปประกอบ (ไม่บังคับ): รับเฉพาะ data URI ของ png/jpg/webp/gif ที่ได้จาก /api/upload เท่านั้น ค่าอื่นถูกทิ้งเป็น null
+const IMG_DATA_RE = /^data:image\/(?:png|jpe?g|webp|gif);base64,[A-Za-z0-9+\/=]+$/;
+const MAX_IMG_CHARS = 2 * 1024 * 1024;
+const cleanImg = v => (typeof v === 'string' && v.length <= MAX_IMG_CHARS && IMG_DATA_RE.test(v)) ? v : null;
+const cleanChoice = c => (c && typeof c === 'object')
+  ? { text: String(c.text ?? '').trim(), image: cleanImg(c.image) }
+  : { text: String(c ?? '').trim(), image: null };
+function prepQuestionBody(b) {
+  if (!b || typeof b !== 'object') return b;
+  b.q = String(b.q ?? '').trim();
+  b.q_image = cleanImg(b.q_image);
+  if (Array.isArray(b.choices)) b.choices = b.choices.map(cleanChoice);
+  return b;
+}
 function validQuestionBody(b) {
-  if (!b || !b.q || !b.type) return 'กรุณากรอกโจทย์และเลือกรูปแบบคำตอบ';
+  // โจทย์ต้องมีข้อความหรือรูปอย่างใดอย่างหนึ่ง (รูปไม่บังคับ แต่ถ้าไม่มีข้อความต้องมีรูป)
+  if (!b || (!b.q && !b.q_image) || !b.type) return 'กรุณากรอกโจทย์ (ข้อความหรือรูปภาพ) และเลือกรูปแบบคำตอบ';
   if (b.type === 'mc') {
     if (!Array.isArray(b.choices) || b.choices.length < 2) return 'ต้องมีอย่างน้อย 2 ตัวเลือก';
+    if (b.choices.some(c => !c.text && !c.image)) return 'ทุกตัวเลือกต้องมีข้อความหรือรูปภาพอย่างใดอย่างหนึ่ง';
     if (!Number.isInteger(b.answer) || b.answer < 0 || b.answer >= b.choices.length) return 'ระบุตัวเลือกที่ถูกให้ตรง';
   } else if (b.type === 'sa') {
     if (!Array.isArray(b.answer) || !b.answer.length) return 'ใส่คำตอบที่ถูกอย่างน้อย 1 คำตอบ';
@@ -137,7 +153,7 @@ function validQuestionBody(b) {
   return null;
 }
 app.post('/api/admin/sets/:id/questions', requireAuth, requireAdmin, ah(async (req, res) => {
-  const err = validQuestionBody(req.body);
+  const err = validQuestionBody(prepQuestionBody(req.body));
   if (err) return res.status(400).json({ error: err });
   const s = await db.prepare('SELECT id FROM sets WHERE id=?').get(req.params.id);
   if (!s) return res.status(404).json({ error: 'ไม่พบชุดข้อสอบ' });
@@ -148,7 +164,7 @@ app.post('/api/admin/sets/:id/questions', requireAuth, requireAdmin, ah(async (r
   res.json({ ...q, choices: b.type === 'mc' ? b.choices : null, answer: b.answer });
 }));
 app.put('/api/admin/questions/:id', requireAuth, requireAdmin, ah(async (req, res) => {
-  const err = validQuestionBody(req.body);
+  const err = validQuestionBody(prepQuestionBody(req.body));
   if (err) return res.status(400).json({ error: err });
   const existing = await db.prepare('SELECT * FROM questions WHERE id=?').get(req.params.id);
   if (!existing) return res.status(404).json({ error: 'ไม่พบข้อสอบ' });
@@ -576,12 +592,12 @@ app.post('/api/admin/sets/:id/questions/bulk', requireAuth, requireAdmin, ah(asy
   for (const it of items) {
     const type = it.t === 'sa' ? 'sa' : 'mc';
     const q = { id: uuid(), set_id: s.id, ord: ord++, type,
-      q: String(it.q || '').trim(), q_image: null,
-      choices: type === 'mc' ? JSON.stringify((it.ch || []).map(c => ({ text: c, image: null }))) : null,
+      q: String(it.q || '').trim(), q_image: cleanImg(it.q_image),
+      choices: type === 'mc' ? JSON.stringify((it.ch || []).map(cleanChoice)) : null,
       answer: JSON.stringify(type === 'mc' ? it.a : (it.a || [])),
       explanation: it.ex || '', section_note: (it.section_note || '').trim() || null };
-    if (!q.q) continue;
-    if (type === 'mc' && (!it.ch || it.ch.length < 2)) continue;
+    if (!q.q && !q.q_image) continue;
+    if (type === 'mc' && (!it.ch || it.ch.length < 2 || JSON.parse(q.choices).some(c => !c.text && !c.image))) continue;
     if (type === 'sa' && (!it.a || !it.a.length)) continue;
     await db.prepare('INSERT INTO questions (id,set_id,ord,type,q,q_image,choices,answer,explanation,section_note) VALUES (@id,@set_id,@ord,@type,@q,@q_image,@choices,@answer,@explanation,@section_note)').run(q);
     added++;
@@ -660,7 +676,9 @@ function gradeOne(q, ans) {
   return ans != null && accepted.some(a => norm(a) === norm(ans));
 }
 function rightAnswerText(q) {
-  return q.type === 'mc' ? JSON.parse(q.choices)[JSON.parse(q.answer)].text : JSON.parse(q.answer).join(' / ');
+  if (q.type !== 'mc') return JSON.parse(q.answer).join(' / ');
+  const idx = JSON.parse(q.answer), c = JSON.parse(q.choices)[idx];
+  return (c && c.text) ? c.text : `ตัวเลือก ${ANSWER_LETTERS[idx] || idx + 1} (รูปภาพ)`;
 }
 
 app.post('/api/exam/:sid/check', (req, res) => {
@@ -678,7 +696,7 @@ app.post('/api/exam/:sid/submit', ah(async (req, res) => {
   const { answers = {}, sec = 0, away = 0, guestName } = req.body || {};
   const detail = sess.qs.map(q => {
     const a = answers[q.id];
-    return { questionId: q.id, q: q.q, type: q.type, choices: q.choices ? JSON.parse(q.choices) : null, given: a ?? null, correct: gradeOne(q, a), rightAnswer: rightAnswerText(q), explanation: q.explanation || '' };
+    return { questionId: q.id, q: q.q, type: q.type, choices: q.choices ? JSON.parse(q.choices).map(c => ({ text: c.text || '', hasImage: !!c.image })) : null, hasImage: !!q.q_image, given: a ?? null, correct: gradeOne(q, a), rightAnswer: rightAnswerText(q), explanation: q.explanation || '' };
   });
   const score = detail.filter(d => d.correct).length;
   const result = {
