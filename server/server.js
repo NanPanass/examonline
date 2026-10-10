@@ -15,9 +15,10 @@ const cors = require('cors');
 const multer = require('multer');
 const mammoth = require('mammoth');
 // ตัวดึงรูปจากไฟล์ Word (ไม่บังคับ): ถ้าโหลดไม่ได้ (เช่น ยังไม่ได้ npm install cheerio) เซิร์ฟเวอร์ต้องไม่ล่ม แค่ข้ามฟีเจอร์นี้
+const { redistributeNotes, repairMergedChoices, reconcileChoices } = require('./exam-fixups');   // กระจาย section_note ตามช่วงข้อที่ระบุ + แก้ตัวเลือกที่ถูกรวมกัน (C+D)
 const { noteKind, joinNote } = require('./section-notes');   // ตัวจับหัวข้อ/คำสั่ง/เนื้อเรื่อง (section_note) ใช้ร่วมกับ docx-images.js
-let extractDocxExam = null, extractDocxKey = null;
-try { ({ extractDocxExam, extractDocxKey } = require('./docx-images')); }
+let extractDocxExam = null, extractDocxKey = null, docxRawText = null;
+try { ({ extractDocxExam, extractDocxKey, docxRawText } = require('./docx-images')); }
 catch (e) { console.warn('[import] ข้ามการดึงรูปจาก .docx เพราะโหลด docx-images ไม่ได้:', e.message); }
 const XLSX = require('xlsx');
 const { v4: uuid } = require('uuid');
@@ -202,9 +203,10 @@ const IMPORT_PROMPT = `คุณคือผู้ช่วยแยกข้อ
 แต่ละข้อในอาเรย์เป็นหนึ่งในสองรูปแบบ:
 ปรนัย: {"t":"mc","q":"โจทย์","ch":["ตัวเลือกที่ 1","ตัวเลือกที่ 2", ...],"a":เลขลำดับตัวเลือกที่ถูกเริ่มที่ 0,"ex":"คำอธิบายเฉลยสั้นๆ หรือค่าว่าง"}
 อัตนัย (มีคำตอบตายตัว): {"t":"sa","q":"โจทย์","a":["คำตอบที่ยอมรับ 1","คำตอบที่ยอมรับ 2 ถ้ามี"],"ex":""}
-ทั้งสองรูปแบบรองรับฟิลด์เสริม "section_note" (ไม่บังคับ ใส่เฉพาะข้อที่เข้าเงื่อนไขด้านล่าง)
+ทั้งสองรูปแบบมีฟิลด์ "num" = เลขข้อตามที่พิมพ์ในเอกสารต้นฉบับ (ตัวเลขล้วน เช่น 25) และรองรับฟิลด์เสริม "section_note" (ไม่บังคับ ใส่เฉพาะข้อที่เข้าเงื่อนไขด้านล่าง)
 กติกา:
 - อย่าใส่ตัวอักษรนำหน้าตัวเลือก (ก. ข. A. B. 1. 2.) ปนอยู่ในข้อความตัวเลือก ให้ตัดออก
+- ตัวเลือกแต่ละตัว (A. B. C. D. / ก. ข. ค. ง.) ต้องแยกเป็นสมาชิกของ ch คนละตัวเสมอ ห้ามรวม D เข้ากับ C หรือรวมตัวเลือกสองตัวเป็นข้อความเดียว แม้จะอยู่บรรทัดเดียวกัน คั่นด้วยแท็บ/ช่องว่าง หรืออยู่คนละคอลัมน์ ก็ต้องนับตามจำนวนคีย์ที่พบ (ข้อที่มี 4 คีย์ต้องได้ ch 4 ตัว)
 - ให้แยกตัวเลือกตาม "คีย์ข้อความ" (ก. ข. ค. ง. / A. B. C. D. / 1. 2. 3. 4.) ไม่ใช่ตามบรรทัด: ตัวเลือกหลายตัวอาจอยู่บรรทัดเดียวกันหรือจัดเป็น 2 คอลัมน์ เช่น "ก. ช้าง   ข. เสือชีตาห์" คือ 2 ตัวเลือก (ก และ ข) และ "ก. ช้าง ข. เสือ ค. เต่า ง. หมี" ในบรรทัดเดียวคือ 4 ตัวเลือก — นับจำนวนตัวเลือกจากจำนวนคีย์ที่พบเสมอ
 - ถ้าเอกสารระบุเฉลยไว้ (ไม่ว่าจะอยู่ติดกับโจทย์หรือแยกเป็นหน้าเฉลยท้ายเล่ม/ท้ายไฟล์) ให้จับคู่แล้วใช้เฉลยนั้นเสมอ ห้ามเดาเองถ้าเอกสารบอกไว้ชัดเจนแล้ว
 - หน้าเฉลยแยกมักขึ้นต้นด้วยหัวข้อคำใดคำหนึ่งต่อไปนี้ (อาจมีคำแปลภาษาอังกฤษต่อท้ายในวงเล็บก็ได้): "เฉลยคำตอบ", "เฉลยข้อสอบ", "เฉลย", "คำตอบ", "Answer", "Answer Key" เช่น "เฉลยคำตอบ (Answer Key)" หรือ "เฉลย (Answer Key)"
@@ -230,6 +232,7 @@ const IMPORT_PROMPT = `คุณคือผู้ช่วยแยกข้อ
   4) ประโยคที่บอกว่าข้อมูลนั้นใช้ตอบข้อไหน เช่น "ใช้ตอบคำถามข้อ 5-7", "Questions 5-7 refer to the following passage"
 - ให้คัดลอกข้อความ "ครบถ้วนตามต้นฉบับ" ห้ามสรุป ห้ามย่อ ห้ามแปล ถ้ามีหลายบรรทัดที่อยู่ติดกันสำหรับช่วงเดียวกัน (เช่น หัวข้อ + คำสั่ง + เนื้อเรื่อง) ให้รวมเป็น section_note เดียว ต่อกันด้วยการขึ้นบรรทัดใหม่ (\\n) ตามลำดับในเอกสาร ไม่ต้องแยกใส่คนละข้อ
 - ใส่ section_note ไว้ที่ข้อคำถาม "ข้อแรก" ของช่วงนั้นเท่านั้น (เช่น ถ้าหัวข้อระบุว่าเริ่มที่ข้อ 25 ให้ใส่ที่ข้อสอบข้อที่ตรงกับข้อ 25 ของเอกสารต้นฉบับ ไม่ใช่ข้อก่อนหน้านั้น)
+- ถ้าเนื้อเรื่อง/หัวข้อหลายชุดวางติดกันก่อนข้อแรก แต่แต่ละชุดระบุช่วงข้อของตัวเองไว้ เช่น "Passage 1 (ข้อ 25–27)" และ "Passage 2 (ข้อ 28–30)" ให้แยกเป็นคนละ section_note: ชุดแรกใส่ที่ข้อ 25 ส่วนชุดที่สองใส่ที่ข้อ 28 ห้ามรวมทั้งสองชุดไว้ที่ข้อ 25
 - ถ้าไม่ได้ระบุช่วงเลขข้อ ให้ใส่ไว้ที่ข้อคำถามข้อแรกที่ปรากฏถัดจากข้อความนั้นทันที
 - ห้ามนำข้อความประเภทเหล่านี้ไปต่อท้ายโจทย์หรือตัวเลือกของข้อก่อนหน้า (เช่น หัวข้อ "ตอนที่ 2" ที่อยู่ถัดจากตัวเลือกสุดท้ายของข้อ 10 ไม่ใช่ส่วนหนึ่งของตัวเลือกนั้น)
 - ห้ามใส่ลงใน section_note: ตัวโจทย์ ตัวเลือก หัวเฉลย/ตารางเฉลย หน้าปก ช่องกรอกชื่อ-นามสกุล-คะแนน เลขหน้า
@@ -579,6 +582,8 @@ function heuristicExtract(text) {
       if (item.t === 'sa' && !item.a.length) item.a = [rest];
     }
   }
+  repairMergedChoices(out);                                        // ตัวเลือกที่ถูกรวม (C+D) ให้แยกกลับ
+  redistributeNotes(out, it => it.num);                            // note ที่ระบุช่วงข้อ ("Passage 2 (ข้อ 28–30)") ไปอยู่ที่ข้อนั้นจริง
   // ข้อปรนัยที่สุดท้ายแล้วก็ยังไม่เจอเฉลยเลย (ไม่มีทั้งแบบติดโจทย์และหน้าเฉลยแยก) ให้ default เป็นตัวเลือกแรกไว้กันระบบพัง
   // ข้ออัตนัยที่ไม่มีคำตอบเลยจริงๆ ตัดทิ้ง เพราะใส่คำตอบเดาไม่ได้
   const cleaned = out.filter(it => it.t !== 'sa' || it.a.length).map(({ num, ...rest }) => (rest.t === 'mc' && rest.a === -1 ? { ...rest, a: 0 } : rest));
@@ -591,7 +596,7 @@ app.post('/api/admin/import', requireAuth, requireAdmin, importUpload.single('fi
   if (!req.file) return res.status(400).json({ error: 'ไม่พบไฟล์ที่อัปโหลด' });
   const ext = path.extname(req.file.originalname || '').toLowerCase();
   const buf = req.file.buffer;
-  let list, source, keySrcText = '', keyTableCount = 0;
+  let list, source, keySrcText = '', keyTableCount = 0, structuredDocx = null;
   try {
     if (ext === '.pdf' || IMAGE_MEDIA[ext]) {
       list = await callClaudeExtract({ fileBuffer: buf, mediaType: ext === '.pdf' ? 'application/pdf' : IMAGE_MEDIA[ext] });
@@ -599,15 +604,18 @@ app.post('/api/admin/import', requireAuth, requireAdmin, importUpload.single('fi
     } else {
       let text = '';
       if (ext === '.docx') {
-        text = (await mammoth.extractRawText({ buffer: buf })).value;
+        // อ่านข้อความโดยรักษา <br> (ขึ้นบรรทัดใหม่ในย่อหน้า) ไว้ ถ้าอ่านไม่สำเร็จค่อยถอยกลับไปใช้ extractRawText เดิม
+        try { text = docxRawText ? await docxRawText(buf) : ''; } catch (e) { text = ''; }
+        if (!text.trim()) text = (await mammoth.extractRawText({ buffer: buf })).value;
         // ลองอ่านแบบโค้ดล้วนก่อน (ดึงรูปโจทย์/รูปตัวเลือกตามตำแหน่งในไฟล์) ถ้าพบข้อสอบที่มีรูปให้ใช้ผลนี้เลย
         if (extractDocxExam) {
           try {
             const dl = await extractDocxExam(buf);
+            structuredDocx = dl;   // เก็บไว้เทียบกับผล AI/ตัวแยกสำรอง (ตรวจตัวเลือกที่ถูกรวมกัน)
             if (dl.length >= 2 && dl.some(x => x.q_image || x.chImg.some(Boolean))) {
               return res.json({
                 source: 'ตัวแยกโค้ด (ดึงรูปจากไฟล์ Word อัตโนมัติ ไม่ใช้ AI)' + (dl.every(x => x.keyFound) ? ' + เฉลยท้ายไฟล์ครบ' : ' — บางข้อไม่พบเฉลย ตรวจทานก่อนบันทึก'),
-                questions: dl.map(({ keyFound, ...r }) => r),
+                questions: dl.map(({ keyFound, num, ...r }) => r),
               });
             }
           } catch (e) { console.warn('docx image extract failed, fallback:', e.message); }
@@ -634,6 +642,13 @@ app.post('/api/admin/import', requireAuth, requireAdmin, importUpload.single('fi
     if (e.code === 'NO_API_KEY') return res.status(400).json({ error: 'ไฟล์นี้ต้องใช้ AI ช่วยอ่าน (รูปภาพ/PDF) แต่เซิร์ฟเวอร์ยังไม่ได้ตั้งค่า ANTHROPIC_API_KEY กรุณาตั้งค่าก่อนใช้งาน' });
     throw e;
   }
+  // ตรวจทานผลลัพธ์ก่อนใช้เฉลย: (1) ตัวเลือกที่ถูกรวมกัน (2) section_note ที่ต้องไปอยู่ตามช่วงข้อที่ระบุ
+  if (Array.isArray(list)) {
+    const rc = reconcileChoices(list, structuredDocx);                       // เทียบกับตัวอ่านโค้ดที่ยึดตัวอักษร A/B/C/D จริง
+    const rm = repairMergedChoices(list, { shiftAnswer: true });            // ข้อความตัวเลือกที่ยังมี "D. xxx" ติดอยู่ในตัวเลือก C
+    if (/^AI/.test(source)) redistributeNotes(list, it => (it.num != null && it.num !== '' && Number.isInteger(+it.num) ? +it.num : null));   // ตัวแยกสำรอง/ตัวอ่าน docx จัดการเองแล้วตามเลขข้อจริง
+    if (rc || rm) source += ` + แก้ตัวเลือกที่ถูกรวมกัน ${rc + rm} ข้อ`;
+  }
   // ตรวจทานซ้ำด้วยหน้าเฉลยท้ายไฟล์ (เฉพาะไฟล์ข้อความ): ถ้า AI จับคู่ผิด ให้ใช้ตัวอ่านเฉลยแบบกำหนดแน่นอนแก้ทับ
   if (keySrcText && Array.isArray(list)) {
     const kr = applyKeyToList(list, keySrcText);
@@ -643,7 +658,7 @@ app.post('/api/admin/import', requireAuth, requireAdmin, importUpload.single('fi
   list = (list || []).filter(x => x && (x.q || x.q_image) && (
     x.t === 'mc' ? Array.isArray(x.ch) && x.ch.length >= 2 && Number.isInteger(x.a) && x.a >= 0 && x.a < x.ch.length
       : Array.isArray(x.a) && x.a.length
-  )).map(x => ({ ...x, ex: x.ex || '' }));
+  )).map(({ num, ...x }) => ({ ...x, ex: x.ex || '' }));
   if (!list.length) return res.status(400).json({ error: 'ไม่พบข้อสอบในไฟล์นี้ ลองตรวจรูปแบบไฟล์หรือใช้ไฟล์อื่น' });
   res.json({ source, questions: list });
 }));

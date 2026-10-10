@@ -3,6 +3,7 @@
 const mammoth = require('mammoth');
 const cheerio = require('cheerio');
 const { noteKind, joinNote } = require('./section-notes');   // ตัวจับหัวข้อ/คำสั่ง/เนื้อเรื่อง ใช้ร่วมกับ server.js
+const { redistributeNotes, repairMergedChoices } = require('./exam-fixups');   // กระจาย note ตามช่วงข้อที่ระบุ + แก้ตัวเลือกที่ถูกรวมกัน
 const { parseKeyGrid } = require('./answer-table');   // อ่านตารางเฉลย (ข้อ|เฉลย) จากแถว×เซลล์จริง
 const keyLines = entries => Object.keys(entries).map(Number).sort((a, b) => a - b).map(n => n + '. ' + entries[n]);
 
@@ -31,20 +32,31 @@ async function docxToBlocks(buffer) {
     }),
   });
   const $ = cheerio.load(html);
-  const lineOf = p => $(p).clone().find('img').replaceWith(function () {
-    return `[[IMG:${$(this).attr('src').split(':')[1]}]]`;
-  }).end().text().replace(/\s+/g, ' ').trim();
+  // <br> (ขึ้นบรรทัดใหม่ด้วย Shift+Enter) ต้องกลายเป็นช่องว่าง ไม่งั้น cheerio.text() จะต่อคำติดกัน "C. dogD. fish" แล้วตัวเลือก D ถูกรวมเข้ากับ C
+  const lineOf = p => {
+    const c = $(p).clone();
+    c.find('br').replaceWith(' ');
+    c.find('img').replaceWith(function () { return `[[IMG:${$(this).attr('src').split(':')[1]}]]`; });
+    return c.text().replace(/\s+/g, ' ').trim();
+  };
 
   // block = ข้อความทีละย่อหน้าใน "เซลล์ตาราง" หรือ "ย่อหน้านอกตาราง" ตามลำดับเอกสารจริง
   const blocks = []; let flowOpen = false;
   $('body').children().each((_, el) => {
     if (el.tagName === 'table') {
+      const wasOpen = flowOpen;
       flowOpen = false;
       // อ่านทั้งตารางเป็นแถว×เซลล์ ถ้าเป็น "ตารางเฉลย" (ข้อ|เฉลย เรียงซ้ำหลายคอลัมน์ / ตารางสองคอลัมน์ / แนวนอน) แปลงเป็นบรรทัด "N. X" ใน block เดียว
       const rows = [];
       $(el).find('tr').each((_, tr) => rows.push($(tr).find('td,th').map((_, td) => $(td).find('p').map((_, p) => lineOf(p)).get().filter(Boolean).join(' ')).get()));
       const g = parseKeyGrid(rows);
       if (g.ok) blocks.push(keyLines(g.entries));
+      else if (wasOpen && tableIsChoiceGrid($, el, lineOf)) {
+        // ตัวเลือกจัดเป็นตาราง (เช่น 2×2: A | B / C | D) ต่อท้ายข้อที่เปิดอยู่ ตามลำดับแถว→เซลล์ ไม่แตกเป็นคนละ block
+        const last = blocks[blocks.length - 1];
+        $(el).find('td,th').each((_, td) => $(td).find('p').each((_, p) => { const l = lineOf(p); if (l) last.push(l); }));
+        flowOpen = true;
+      }
       else $(el).find('td,th').each((_, td) => blocks.push($(td).find('p').map((_, p) => lineOf(p)).get().filter(Boolean)));
     }
     else if (el.tagName === 'p') {
@@ -64,17 +76,21 @@ async function docxToBlocks(buffer) {
 
 // แตกบรรทัดที่มีตัวเลือกหลายตัว เช่น "A. cat\tB. bird\tC. dog\tD. fish" ให้เป็นหลายบรรทัด
 // ตัดเฉพาะจุดที่ตัวอักษรเรียงต่อกันจริง (A→B→C→D / ก→ข→ค→ง) เพื่อไม่ตัดผิดกลางประโยค
-function splitInlineChoices(line) {
-  const re = /(?:^|\s)\(?([A-Ha-hก-ฌ])[.)]\s+/g;
-  const cuts = []; let expect = -1, m;
+// startIdx = จำนวนตัวเลือกที่เก็บไว้แล้วในข้อนี้ (0 = ยังไม่มี) — บรรทัด "C. x   D. y" ที่เป็นแถวที่ 2 ของตัวเลือก 2 คอลัมน์ ต้องเริ่มนับที่ C ไม่ใช่ A
+// (เดิมบังคับเริ่มที่ A เสมอ ทำให้ D ถูกรวมเข้ากับ C)
+function splitInlineChoices(line, startIdx = 0) {
+  // ยอมให้ไม่มีช่องว่างหลังจุด ("A.cat") แต่ไม่ตัดที่ตัวย่อ เช่น "a.m." "p.m."
+  const re = /(?:^|\s)\(?([A-Ha-hก-ฌ])[.)]\s*(?![A-Za-z]\.)/g;
+  const cuts = []; let expect = startIdx, m;
   while ((m = re.exec(line))) {
     const i = letterIdx(m[1]);
-    if (expect === -1 ? i === 0 : i === expect) {
+    if (i === expect) {
       cuts.push(m.index + (m[0].length - m[0].trimStart().length));
       expect = i + 1;
     }
   }
-  if (cuts.length < 2) return [line];
+  // เริ่มที่ A/ก ต้องมีอย่างน้อย 2 ตัวถึงจะตัด (กันข้อความธรรมดา) | เริ่มกลางทาง (ต่อจากตัวเลือกที่มีแล้ว) ตัวเดียวก็ตัดได้
+  if (cuts.length < (startIdx > 0 ? 1 : 2)) return [line];
   const out = [];
   if (cuts[0] > 0) out.push(line.slice(0, cuts[0]).trim());
   cuts.forEach((c, k) => out.push(line.slice(c, cuts[k + 1]).trim()));
@@ -83,16 +99,18 @@ function splitInlineChoices(line) {
 
 // อ่าน 1 block เป็นข้อสอบปรนัย: "N." → (ข้อความ/รูปโจทย์) → "A." "B." ... (ข้อความ/รูปตัวเลือก)
 function parseQuestionBlock(lines, images) {
-  lines = lines.flatMap(splitInlineChoices);   // รองรับตัวเลือกหลายตัวในบรรทัดเดียว
   let num = null, mode = 'q'; const q = { text: [], img: null }, ch = [];
-  for (let raw of lines) {
-    let line = raw;
-    if (num === null) { const m = line.match(NUM_RE); if (!m) return null; num = +m[1]; line = line.slice(m[0].length); }
-    const k = mode === 'q' || true ? line.match(KEY_RE) : null;
-    if (k && letterIdx(k[1]) === ch.length) { ch.push({ text: [], image: null }); mode = 'c'; line = line.slice(k[0].length); }
-    const target = mode === 'q' ? q : ch[ch.length - 1];
-    line = line.replace(IMG_RE, (_, n) => { (mode === 'q' ? q : target).img = images[+n - 1]; return ''; }).trim();
-    if (line) target.text.push(line);
+  for (const raw of lines) {
+    let first = raw;
+    if (num === null) { const m = first.match(NUM_RE); if (!m) return null; num = +m[1]; first = first.slice(m[0].length); }
+    // แตกตัวเลือกหลายตัวในบรรทัดเดียว โดยนับต่อจากจำนวนตัวเลือกที่มีอยู่แล้ว ("A. x  B. y" แล้วบรรทัดถัดไป "C. z  D. w")
+    for (let line of splitInlineChoices(first, ch.length)) {
+      const k = line.match(KEY_RE);
+      if (k && letterIdx(k[1]) === ch.length) { ch.push({ text: [], image: null }); mode = 'c'; line = line.slice(k[0].length); }
+      const target = mode === 'q' ? q : ch[ch.length - 1];
+      line = line.replace(IMG_RE, (_, n) => { target.img = images[+n - 1]; return ''; }).trim();
+      if (line) target.text.push(line);
+    }
   }
   if (num === null || ch.length < 2) return null;
   return { num, q: q.text.join(' '), q_image: q.img, ch: ch.map(c => ({ text: c.text.join(' '), image: c.img ?? null })) };
@@ -124,13 +142,22 @@ async function extractDocxExam(buffer) {
     // ไม่ใช่ทั้งสองอย่าง และไม่มี note ค้าง = ข้อความอื่นในไฟล์ (ชื่อเรื่อง ช่องกรอกชื่อ หัวเฉลย) ข้ามไป
   }
   // รูปแบบเดียวกับที่หน้า "นำเข้าจากไฟล์" เดิมใช้อยู่: ch = ข้อความตัวเลือก, chImg = รูปของตัวเลือก
-  return questions.map(q => ({
+  const out = questions.map(q => ({
     t: 'mc', q: q.q, q_image: q.q_image,
     ch: q.ch.map(c => c.text), chImg: q.ch.map(c => c.image),
     a: Number.isInteger(key[q.num]) ? key[q.num] : 0, ex: '',
     keyFound: q.num in key,
+    num: q.num,
     ...(q.note ? { section_note: q.note } : {}),
   }));
+  repairMergedChoices(out);                          // เฉลยในโหมดนี้อ่านตามตัวอักษรจริง (A/B/C/D) จึงไม่ต้องเลื่อนค่า a
+  redistributeNotes(out, it => it.num);              // "Passage 2 (ข้อ 28–30)" ไปอยู่ที่ข้อ 28 ตามที่ระบุ
+  return out;
+}
+// ตารางที่ทุกเซลล์ขึ้นต้นด้วยตัวเลือก (A. / B. / ก. ...) = ตารางจัดวางตัวเลือก ไม่ใช่โจทย์ใหม่
+function tableIsChoiceGrid($, el, lineOf) {
+  const cells = $(el).find('td,th').map((_, td) => $(td).find('p').map((_, p) => lineOf(p)).get().filter(Boolean)[0] || '').get().filter(Boolean);
+  return cells.length >= 2 && cells.every(c => KEY_RE.test(c));
 }
 // อ่านเฉพาะ "ตารางเฉลย" ในไฟล์ Word → { entries: {เลขข้อ: ตัวอักษร}, count } (ใช้กับไฟล์ที่ไม่มีรูป ซึ่ง server.js อ่านเป็นข้อความล้วน)
 // mammoth.extractRawText ทิ้งโครงสร้างตาราง (ได้ "ข้อ/เฉลย/1/B/11/B/21/C/2/C..." เซลล์ละบรรทัดเรียงตามแถว) จึงต้องอ่านจากตารางโดยตรง
@@ -146,4 +173,12 @@ async function extractDocxKey(buffer) {
   });
   return { entries, count: Object.keys(entries).length };
 }
-module.exports = { extractDocxExam, docxToBlocks, extractDocxKey };
+// ข้อความล้วนจาก Word แบบรักษา "การขึ้นบรรทัดใหม่ภายในย่อหน้า" (Shift+Enter / <br>)
+// mammoth.extractRawText ทิ้ง <br> ทำให้ "A. by bus⏎B. by bicycle⏎C. by car⏎D. on foot" กลายเป็น "A. by busB. by bicycleC. by carD. on foot"
+// → ตัวเลือก D (และตัวอื่น) ถูกรวมเข้าด้วยกัน ทั้งในตัวแยกสำรองและในข้อความที่ส่งให้ AI
+async function docxRawText(buffer) {
+  const { value: html } = await mammoth.convertToHtml({ buffer }, { convertImage: mammoth.images.imgElement(async () => ({ src: '' })) });
+  const marked = html.replace(/<br\s*\/?>/gi, '\n').replace(/<\/(?:p|h[1-6]|li|tr)>/gi, '$&\n\n');
+  return cheerio.load(marked).text().replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n');
+}
+module.exports = { extractDocxExam, docxToBlocks, extractDocxKey, docxRawText };
