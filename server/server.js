@@ -60,6 +60,9 @@ const upload = multer({
 
 app.use(optionalAuth);
 
+// ใช้ตรวจว่า deploy ขึ้นไปเป็นรุ่นที่มี "รูปประกอบคำอธิบายช่วงตอน" แล้วหรือยัง: เปิด /api/version ในเบราว์เซอร์
+app.get('/api/version', (req, res) => res.json({ build: 'section-image-2026-10-11', sectionImage: true, noteRange: true, choiceSplit: true }));
+
 // ---------- Auth ----------
 app.post('/api/auth/register', ah(async (req, res) => {
   const { email, password, name } = req.body || {};
