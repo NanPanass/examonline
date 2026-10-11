@@ -124,4 +124,16 @@ function reconcileChoices(list, structured) {
   return fixed;
 }
 
-module.exports = { redistributeNotes, splitNote, repairMergedChoices, reconcileChoices };
+// ---------- 4) รูปประกอบช่วงตอนต้องใช้ได้กับ "ทุกข้อในช่วงนั้น" ----------
+// ข้อที่มีรูปประกอบ (section_image) ผูกอยู่ที่ข้อแรกของช่วง แต่ข้อถัดๆ ไปที่โจทย์เขียนว่า "จากภาพ หมายเลข 2 คือ ..." ก็ต้องเห็นรูปเดียวกัน
+// กติกา: ข้อใดไม่มี section_note/section_image ของตัวเอง ให้ใช้ของข้อก่อนหน้าที่ "มีรูป" ต่อไปเรื่อยๆ จนกว่าจะเจอข้อที่มีหัวข้อใหม่
+// (หัวข้อล้วนไม่มีรูปไม่ถูกส่งต่อ เพื่อไม่เปลี่ยนพฤติกรรมเดิม) ต้องเรียกกับรายการที่เรียงตาม ord แล้ว ก่อนสลับลำดับ/กรองประเภทข้อ
+function carryImageNotes(rows) {
+  let cur = null;
+  return (rows || []).map(q => {
+    if (q.section_note || q.section_image) { cur = q.section_image ? { note: q.section_note || null, img: q.section_image } : null; return q; }
+    return cur ? { ...q, section_note: cur.note, section_image: cur.img } : q;
+  });
+}
+
+module.exports = { redistributeNotes, splitNote, repairMergedChoices, reconcileChoices, carryImageNotes };

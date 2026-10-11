@@ -2,7 +2,7 @@
 // ใช้ mammoth (แปลง docx → HTML พร้อมรูปแบบ data URI ตามลำดับในเอกสาร) + cheerio (อ่าน HTML)
 const mammoth = require('mammoth');
 const cheerio = require('cheerio');
-const { noteKind, joinNote, splitGluedHeading } = require('./section-notes');   // ตัวจับหัวข้อ/คำสั่ง/เนื้อเรื่อง ใช้ร่วมกับ server.js
+const { noteKind, joinNote } = require('./section-notes');   // ตัวจับหัวข้อ/คำสั่ง/เนื้อเรื่อง ใช้ร่วมกับ server.js
 const { redistributeNotes, repairMergedChoices } = require('./exam-fixups');   // กระจาย note ตามช่วงข้อที่ระบุ + แก้ตัวเลือกที่ถูกรวมกัน
 const { parseKeyGrid } = require('./answer-table');   // อ่านตารางเฉลย (ข้อ|เฉลย) จากแถว×เซลล์จริง
 const keyLines = entries => Object.keys(entries).map(Number).sort((a, b) => a - b).map(n => n + '. ' + entries[n]);
@@ -57,13 +57,25 @@ async function docxToBlocks(buffer) {
         $(el).find('td,th').each((_, td) => $(td).find('p').each((_, p) => { const l = lineOf(p); if (l) last.push(l); }));
         flowOpen = true;
       }
-      else $(el).find('td,th').each((_, td) => blocks.push($(td).find('p').map((_, p) => lineOf(p)).get().filter(Boolean)));
+      else {
+        const cellBlocks = [];
+        $(el).find('td,th').each((_, td) => cellBlocks.push($(td).find('p').map((_, p) => lineOf(p)).get().filter(Boolean)));
+        // ตารางที่ไม่มีเซลล์ไหนขึ้นต้นด้วยเลขข้อ = ตารางข้อมูล/ตารางภาพจำ ไม่ใช่ข้อสอบ → เก็บเป็น "แถวละบรรทัด" (เซลล์คั่นด้วย |) ให้อ่านรู้เรื่องในช่องอธิบายโจทย์
+        if (cellBlocks.some(cb => cb.some(l => NUM_RE.test(l)))) blocks.push(...cellBlocks);
+        else {
+          const rowLines = rows.map(r => r.filter(Boolean).join(' | ')).filter(Boolean);
+          if (rowLines.length) { rowLines.tableText = true; blocks.push(rowLines); }
+        }
+      }
+    }
+    else if (/^h[1-6]$/.test(el.tagName)) {
+      // หัวข้อ (Heading 1-6) เดิมถูกข้ามทิ้ง → ตอนนี้เป็นจุดเริ่ม "ข้อความอธิบายช่วงตอน" และตัดข้อก่อนหน้าไม่ให้ไหลมาต่อ
+      const l = lineOf(el); if (!l) return;
+      const hb = [l]; hb.heading = true; blocks.push(hb); flowOpen = false;
     }
     else if (el.tagName === 'p') {
       // ย่อหน้านอกตาราง: เริ่ม block ใหม่ทุกครั้งที่เจอ "เลขข้อ." แล้วต่อย่อหน้าถัดไปเข้า block เดิมจนกว่าจะเจอเลขข้อใหม่
-      // หัวข้อที่ถูกต่อท้ายบรรทัดเดียวกับตัวเลือก (Shift+Enter) ต้องแยกออกเป็นบรรทัดหัวข้อของตัวเอง
-      const whole = lineOf(el); if (!whole) return;
-      for (const l of splitGluedHeading(whole)) {
+      const l = lineOf(el); if (!l) return;
       const isKeyLine = /^\s*\d{1,3}\s*[.)]\s*[A-Ha-hก-ฌ]\s*$/.test(l);
       if (isKeyLine) { blocks.push([l]); flowOpen = false; }
       else if (NUM_RE.test(l)) { blocks.push([l]); flowOpen = true; }
@@ -71,7 +83,6 @@ async function docxToBlocks(buffer) {
       else if (startsNote(l, flowOpen, blocks[blocks.length - 1])) { blocks.push([l]); flowOpen = false; }   // หัวข้อ/คำสั่ง/เนื้อเรื่อง ต้องไม่ไหลไปต่อท้ายตัวเลือกข้อก่อนหน้า
       else if (flowOpen) blocks[blocks.length - 1].push(l);
       else blocks.push([l]);
-      }
     }
   });
   return { blocks, images };
@@ -130,13 +141,15 @@ async function extractDocxExam(buffer) {
   const { blocks, images } = await docxToBlocks(buffer);
   const questions = [], key = {};
   // pending = ข้อความอธิบายที่รอผูกกับ "ข้อถัดไป" (หัวข้อ + คำสั่ง + เนื้อเรื่อง ที่อยู่ติดกัน รวมเป็น note เดียว)
-  let pending = [];
+  let pending = [], seenHeading = false;
   for (const b of blocks) {
     const k = parseKeyBlock(b);
     if (Object.keys(k).length) { Object.assign(key, k); continue; }
+    // หัวข้อ (Heading) ของเอกสาร: หัวข้อแรกสุดคือจุดเริ่มเนื้อหาจริง ข้อความ/คำสั่งที่อยู่ก่อนหน้า (ชื่อชุด ช่องกรอกชื่อ สารบัญหน้าปก) ทิ้ง ไม่เอาไปปนในช่องอธิบายข้อแรก
+    if (b.heading) { if (!seenHeading && !questions.length) pending = []; seenHeading = true; pending.push(...b); continue; }
     const q = parseQuestionBlock(b, images);
     if (q) {
-      if (pending.length) { const note = joinNote(pending); if (note) q.note = note; pending = []; }
+      if (pending.length) { const note = joinNoteKeepImg(pending); if (note) q.note = note; pending = []; }
       questions.push(q);
       continue;
     }
@@ -155,7 +168,26 @@ async function extractDocxExam(buffer) {
   }));
   repairMergedChoices(out);                          // เฉลยในโหมดนี้อ่านตามตัวอักษรจริง (A/B/C/D) จึงไม่ต้องเลื่อนค่า a
   redistributeNotes(out, it => it.num);              // "Passage 2 (ข้อ 28–30)" ไปอยู่ที่ข้อ 28 ตามที่ระบุ
+  // แยกมาร์กเกอร์รูป [[IMG:n]] ออกจากข้อความ note → section_image (รูปแรกของ note นั้น) ; ข้อความที่เหลือคือ section_note
+  for (const it of out) {
+    if (!it.section_note) continue;
+    const m = /\[\[IMG:(\d+)\]\]/.exec(it.section_note);
+    if (m && images[+m[1] - 1]) it.section_image = images[+m[1] - 1];
+    const text = it.section_note.replace(/\[\[IMG:\d+\]\]/g, '').split('\n').map(x => x.trim()).filter(Boolean).join('\n');
+    if (text) it.section_note = text; else delete it.section_note;
+  }
   return out;
+}
+// รวมบรรทัดของ note แบบ "เก็บมาร์กเกอร์รูป [[IMG:n]] ไว้" (joinNote ปกติจะตัดทิ้ง) เพื่อให้รูปเดินทางไปกับท่อนข้อความของมันตอนกระจาย note ตามช่วงข้อ
+function joinNoteKeepImg(lines, max = 4000) {
+  const out = []; let len = 0;
+  for (const l of lines) {
+    const t = String(l).replace(/[ \t]+/g, ' ').trim(); if (!t) continue;
+    const textOnly = t.replace(/\[\[IMG:\d+\]\]/g, '').trim();
+    if (textOnly && len + textOnly.length > max) continue;
+    out.push(t); len += textOnly.length + 1;
+  }
+  return out.join('\n');
 }
 // ตารางที่ทุกเซลล์ขึ้นต้นด้วยตัวเลือก (A. / B. / ก. ...) = ตารางจัดวางตัวเลือก ไม่ใช่โจทย์ใหม่
 function tableIsChoiceGrid($, el, lineOf) {

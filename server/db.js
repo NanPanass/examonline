@@ -76,7 +76,8 @@ CREATE TABLE IF NOT EXISTS questions (
   choices TEXT,
   answer TEXT NOT NULL,
   explanation TEXT DEFAULT '',
-  section_note TEXT
+  section_note TEXT,
+  section_image TEXT
 );
 CREATE TABLE IF NOT EXISTS results (
   id TEXT PRIMARY KEY,
@@ -151,6 +152,9 @@ async function seedIfEmpty() {
 // (ครอบ try/catch เพราะถ้าเพิ่มไปแล้วครั้งก่อน รันซ้ำจะ error "duplicate column" ซึ่งไม่ใช่ปัญหา)
 async function migrate() {
   try { await client.execute('ALTER TABLE questions ADD COLUMN section_note TEXT'); }
+  catch (e) { if (!/duplicate column|already exists/i.test(e.message || '')) throw e; }
+  // รูปประกอบคำอธิบายช่วงตอน (data URI) — ใช้กับแผนภาพ/ภาพจำที่ข้อถัดๆ ไปต้อง "ดูจากภาพ"
+  try { await client.execute('ALTER TABLE questions ADD COLUMN section_image TEXT'); }
   catch (e) { if (!/duplicate column|already exists/i.test(e.message || '')) throw e; }
 }
 
